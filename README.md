@@ -70,10 +70,22 @@ the computation and `js/solverScreen.js` for the grid rendering.
 
 ## How the bots think
 
-Each bot has a personality (aggression, tightness, bluff frequency) layered on top of a hand-strength
-estimate: the Chen formula preflop, and a Monte Carlo equity simulation against the remaining live
-opponents postflop. Decisions weigh that estimate against pot odds before folding, calling, or sizing
-a raise.
+Each bot is dealt one of eight playstyle archetypes — Nit, Calling Station, Volatile Shover, GTO
+Nerd, Grinder, Maniac, Rock, Wildcard — each a different (aggression, tightness, bluff frequency,
+adaptivity) profile layered on top of a hand-strength estimate: the Chen formula preflop, a Monte
+Carlo equity simulation against the remaining live opponents postflop. Decisions weigh that
+estimate against pot odds before folding, calling, or sizing a raise.
+
+Bots are also slightly adaptive: the engine tracks each player's VPIP, fold-to-raise rate, and
+aggression frequency as the game goes (`PokerGame.tableTendencies`), and each bot nudges its
+bluff/aggression/tightness dials toward exploiting what it's actually observed — scaled by an
+`adaptivity` factor per archetype. A GTO Nerd barely moves off its baseline no matter the table;
+a Volatile Shover swings hard, bluffing much more against a fold-happy table and cutting bluffs
+almost to zero against one that never folds.
+
+The main UI never reveals which archetype a bot is playing — seats show a random generic name
+(`js/bot.js`'s `pickBotNames`), independent of and reshuffled separately from the personality
+assignment, so there's no tell to read off a name.
 
 ## Project structure
 

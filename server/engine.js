@@ -19,4 +19,5 @@ module.exports = {
   PokerGame,
   BOT_PERSONALITIES: global.BOT_PERSONALITIES,
   decideBotAction: global.decideBotAction,
+  pickBotNames: global.pickBotNames,
 };

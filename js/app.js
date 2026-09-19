@@ -189,11 +189,12 @@ const App = {
       players.push({ id: HUMAN_ID, name: 'You', isHuman: true, chips: config.startingChips });
     }
     if (tableType === 'mixed' || tableType === 'bots') {
+      const names = pickBotNames(config.botCount);
       for (let i = 0; i < config.botCount; i++) {
         const personality = shuffledPersonalities[i % shuffledPersonalities.length];
         players.push({
           id: `bot-${i}`,
-          name: personality.name,
+          name: names[i],
           isHuman: false,
           chips: config.startingChips,
           personality,
@@ -404,6 +405,7 @@ const App = {
         canCheck: legal.canCheck,
         street: game.street,
         opponentsInHand: Math.max(0, opponentsInHand),
+        tendencies: game.tableTendencies(playerId),
       });
 
       if (decision.action === 'fold' && legal.canCheck) {

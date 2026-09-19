@@ -2,7 +2,7 @@
 // authoritative PokerGame instance. Hole cards never leave the server except
 // to their owner (or to everyone at a real showdown) — every broadcast is a
 // per-viewer snapshot built fresh from the live game state.
-const { PokerGame, BOT_PERSONALITIES, decideBotAction } = require('./engine.js');
+const { PokerGame, BOT_PERSONALITIES, decideBotAction, pickBotNames } = require('./engine.js');
 const { WebSocket } = require('ws');
 
 const TURN_TIMEOUT_MS = 60000;
@@ -113,10 +113,11 @@ class Room {
       id: p.id, name: p.name, isHuman: true, chips: this.startingChips,
     }));
     const personalities = shuffleArray([...BOT_PERSONALITIES]);
+    const names = pickBotNames(this.botFillCount);
     for (let i = 0; i < this.botFillCount; i++) {
       const personality = personalities[i % personalities.length];
       players.push({
-        id: `bot-${i}`, name: personality.name, isHuman: false,
+        id: `bot-${i}`, name: names[i], isHuman: false,
         chips: this.startingChips, personality,
       });
     }
@@ -220,6 +221,7 @@ class Room {
       canCheck: legal.canCheck,
       street: game.street,
       opponentsInHand: Math.max(0, opponentsInHand),
+      tendencies: game.tableTendencies(playerId),
     });
 
     if (decision.action === 'fold' && legal.canCheck) {
