@@ -11,7 +11,10 @@
 
 <div id="setup-screen" class="screen">
   <div class="setup-card">
-    <h1>AllIn<span class="accent">Bots</span></h1>
+    <div class="setup-card-header">
+      <h1>AllIn<span class="accent">Bots</span></h1>
+      <button id="open-solver-btn" class="ghost-btn small">Preflop Solver</button>
+    </div>
     <p class="tagline">Texas Hold'em against AI opponents. No sign-up, no real money — just chips and nerve.</p>
 
     <div class="mode-select">
@@ -122,6 +125,77 @@
   </div>
 </div>
 
+<div id="solver-screen" class="screen hidden">
+  <div class="solver-card">
+    <header class="solver-header">
+      <div>
+        <h1>AllIn<span class="accent">Bots</span> <span class="solver-badge">Solver</span></h1>
+        <p class="tagline solver-tagline">A live preflop range, recomputed for your table — not looked up from a chart.</p>
+      </div>
+      <button id="solver-back-btn" class="ghost-btn">Back to Lobby</button>
+    </header>
+
+    <div class="solver-body">
+      <div class="solver-controls">
+        <div class="option-row">
+          <label for="solver-players">Players at table</label>
+          <input type="range" id="solver-players" min="2" max="9" value="6" />
+          <span id="solver-players-label">6 players</span>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-position">Position</label>
+          <select id="solver-position">
+            <option value="early">Early</option>
+            <option value="middle" selected>Middle</option>
+            <option value="late">Late</option>
+            <option value="button">Button</option>
+            <option value="sb">Small Blind</option>
+            <option value="bb">Big Blind</option>
+          </select>
+        </div>
+
+        <label class="solver-controls-label">Game type</label>
+        <div class="mode-select solver-type-select">
+          <button class="mode-btn solver-type-btn selected" data-game-type="cash">
+            <strong>Cash Game</strong>
+            <span>Pure chip-EV — no ICM pressure.</span>
+          </button>
+          <button class="mode-btn solver-type-btn" data-game-type="tournament">
+            <strong>Tournament</strong>
+            <span>ICM trims marginal spots as stacks get short.</span>
+          </button>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-stack">Stack size</label>
+          <input type="range" id="solver-stack" min="5" max="200" value="100" />
+          <span id="solver-stack-label">100 BB</span>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-bluff">Bluff frequency</label>
+          <input type="range" id="solver-bluff" min="0" max="60" value="20" />
+          <span id="solver-bluff-label">20%</span>
+        </div>
+
+        <p class="fine-print solver-disclaimer">
+          A heuristic teaching tool built from hand-strength percentiles, implied odds, and a
+          simplified ICM factor — not a certified game-theory solve.
+        </p>
+      </div>
+
+      <div class="solver-output">
+        <div id="solver-summary" class="solver-summary"></div>
+        <div class="solver-grid-wrap">
+          <div id="solver-grid" class="solver-grid"></div>
+        </div>
+        <div id="solver-legend" class="solver-legend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="table-screen" class="screen hidden">
   <header class="hud">
     <div class="hud-left">
@@ -193,10 +267,12 @@
 <script src="js/deck.js"></script>
 <script src="js/handEvaluator.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/solver.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/net.js"></script>
 <script src="js/app.js"></script>
 <script src="js/online.js"></script>
+<script src="js/solverScreen.js"></script>
 </body>
 </html>

@@ -67,6 +67,10 @@ const App = {
       this.startingChips = Number(document.getElementById('starting-chips').value);
       this.beginGameFromSetup();
     });
+
+    document.getElementById('open-solver-btn').addEventListener('click', () => {
+      SolverScreen.open();
+    });
   },
 
   // Toggles which option panel is visible for the selected table type. The
@@ -227,6 +231,7 @@ const App = {
     document.getElementById('setup-screen').classList.toggle('hidden', name !== 'setup');
     document.getElementById('lobby-screen').classList.toggle('hidden', name !== 'lobby');
     document.getElementById('table-screen').classList.toggle('hidden', name !== 'table');
+    document.getElementById('solver-screen').classList.toggle('hidden', name !== 'solver');
   },
 
   returnToLobby() {
