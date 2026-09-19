@@ -5,9 +5,15 @@ const HUMAN_ID = 'human';
 const App = {
   game: null,
   selectedMode: 'cash',
+  selectedTableType: 'mixed',
+  tableType: 'mixed',
   startingChips: 1500,
   currentLegal: null,
   botTimer: null,
+  autoAdvanceTimer: null,
+  perspectiveId: null,
+  actingHumanId: null,
+  pendingActingId: null,
 
   init() {
     UI.init();
@@ -16,7 +22,7 @@ const App = {
   },
 
   bindSetupScreen() {
-    const modeButtons = document.querySelectorAll('.mode-btn');
+    const modeButtons = document.querySelectorAll('.mode-btn[data-mode]');
     modeButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         modeButtons.forEach((b) => b.classList.remove('selected'));
@@ -28,17 +34,80 @@ const App = {
     });
     modeButtons[0].classList.add('selected');
 
+    const tableTypeButtons = document.querySelectorAll('.table-type-btn');
+    tableTypeButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tableTypeButtons.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedTableType = btn.dataset.tableType;
+        this.updateTableTypeOptions();
+      });
+    });
+    tableTypeButtons[0].classList.add('selected');
+    this.updateTableTypeOptions();
+
     const botCountInput = document.getElementById('bot-count');
     const botCountLabel = document.getElementById('bot-count-label');
     botCountInput.addEventListener('input', () => {
       botCountLabel.textContent = `${botCountInput.value} bots`;
     });
 
-    document.getElementById('start-btn').addEventListener('click', () => {
-      const botCount = Number(document.getElementById('bot-count').value);
-      this.startingChips = Number(document.getElementById('starting-chips').value);
-      this.beginGame(this.selectedMode, botCount, this.startingChips);
+    const tableBotCountInput = document.getElementById('table-bot-count');
+    const tableBotCountLabel = document.getElementById('table-bot-count-label');
+    tableBotCountInput.addEventListener('input', () => {
+      tableBotCountLabel.textContent = `${tableBotCountInput.value} bots`;
     });
+
+    const humanCountInput = document.getElementById('human-count');
+    const humanCountLabel = document.getElementById('human-count-label');
+    humanCountInput.addEventListener('input', () => {
+      humanCountLabel.textContent = `${humanCountInput.value} players`;
+      this.renderHumanNameInputs(Number(humanCountInput.value));
+    });
+    this.renderHumanNameInputs(Number(humanCountInput.value));
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      this.startingChips = Number(document.getElementById('starting-chips').value);
+      this.beginGameFromSetup();
+    });
+  },
+
+  updateTableTypeOptions() {
+    document.getElementById('mixed-options').classList.toggle('hidden', this.selectedTableType !== 'mixed');
+    document.getElementById('bots-options').classList.toggle('hidden', this.selectedTableType !== 'bots');
+    document.getElementById('humans-options').classList.toggle('hidden', this.selectedTableType !== 'humans');
+    document.getElementById('human-names').classList.toggle('hidden', this.selectedTableType !== 'humans');
+  },
+
+  renderHumanNameInputs(count) {
+    const container = document.getElementById('human-names');
+    const existing = [...container.querySelectorAll('input')].map((i) => i.value);
+    container.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 16;
+      input.placeholder = `Player ${i + 1}`;
+      input.value = existing[i] || '';
+      input.className = 'human-name-input';
+      container.appendChild(input);
+    }
+  },
+
+  beginGameFromSetup() {
+    const tableType = this.selectedTableType;
+    const config = { startingChips: this.startingChips };
+    if (tableType === 'mixed') {
+      config.botCount = Number(document.getElementById('bot-count').value);
+    } else if (tableType === 'bots') {
+      config.botCount = Number(document.getElementById('table-bot-count').value);
+    } else if (tableType === 'humans') {
+      config.humanCount = Number(document.getElementById('human-count').value);
+      config.humanNames = [...document.querySelectorAll('.human-name-input')].map(
+        (input, idx) => input.value.trim() || `Player ${idx + 1}`
+      );
+    }
+    this.beginGame(tableType, this.selectedMode, config);
   },
 
   bindTableScreen() {
@@ -47,16 +116,32 @@ const App = {
     document.getElementById('restart-btn').addEventListener('click', () => this.returnToLobby());
 
     document.getElementById('rebuy-btn').addEventListener('click', () => {
-      const human = this.game.players.find((p) => p.id === HUMAN_ID);
-      human.chips = this.startingChips;
-      human.busted = false;
+      for (const p of this.game.players) {
+        if (p.isHuman && p.busted) {
+          p.chips = this.startingChips;
+          p.busted = false;
+        }
+      }
       UI.showRebuy(false);
       this.dealNextHand();
     });
 
     document.getElementById('next-hand-btn').addEventListener('click', () => {
+      clearTimeout(this.autoAdvanceTimer);
       UI.hideResult();
       this.dealNextHand();
+    });
+
+    document.getElementById('pass-device-btn').addEventListener('click', () => {
+      UI.showPassDevice(false);
+      const playerId = this.pendingActingId;
+      if (!playerId || !this.game) return;
+      this.perspectiveId = playerId;
+      this.actingHumanId = playerId;
+      this.syncTable({ activePlayerId: playerId });
+      this.currentLegal = this.game.legalActions();
+      UI.configureActions(this.currentLegal);
+      UI.showActionButtons(true);
     });
 
     document.getElementById('log-toggle').addEventListener('click', () => {
@@ -88,52 +173,85 @@ const App = {
   },
 
   humanAct(action, amount) {
-    if (!this.currentLegal) return;
+    if (!this.currentLegal || !this.actingHumanId) return;
     if (action === 'call' && this.currentLegal.toCall === 0) action = 'check';
     UI.showActionButtons(false);
-    this.game.applyAction(HUMAN_ID, action, amount);
+    if (this.tableType === 'humans') this.perspectiveId = null;
+    this.game.applyAction(this.actingHumanId, action, amount);
   },
 
-  buildPlayers(botCount, startingChips) {
+  buildPlayers(tableType, config) {
     const shuffledPersonalities = [...BOT_PERSONALITIES];
     shuffle(shuffledPersonalities);
-    const players = [
-      { id: HUMAN_ID, name: 'You', isHuman: true, chips: startingChips },
-    ];
-    for (let i = 0; i < botCount; i++) {
-      const personality = shuffledPersonalities[i % shuffledPersonalities.length];
-      players.push({
-        id: `bot-${i}`,
-        name: personality.name,
-        isHuman: false,
-        chips: startingChips,
-        personality,
-      });
+    const players = [];
+
+    if (tableType === 'mixed') {
+      players.push({ id: HUMAN_ID, name: 'You', isHuman: true, chips: config.startingChips });
+      for (let i = 0; i < config.botCount; i++) {
+        const personality = shuffledPersonalities[i % shuffledPersonalities.length];
+        players.push({
+          id: `bot-${i}`,
+          name: personality.name,
+          isHuman: false,
+          chips: config.startingChips,
+          personality,
+        });
+      }
+    } else if (tableType === 'bots') {
+      for (let i = 0; i < config.botCount; i++) {
+        const personality = shuffledPersonalities[i % shuffledPersonalities.length];
+        players.push({
+          id: `bot-${i}`,
+          name: personality.name,
+          isHuman: false,
+          chips: config.startingChips,
+          personality,
+        });
+      }
+    } else if (tableType === 'humans') {
+      for (let i = 0; i < config.humanCount; i++) {
+        players.push({
+          id: `human-${i}`,
+          name: config.humanNames[i] || `Player ${i + 1}`,
+          isHuman: true,
+          chips: config.startingChips,
+        });
+      }
     }
     return players;
   },
 
-  beginGame(mode, botCount, startingChips) {
+  beginGame(tableType, mode, config) {
     document.getElementById('setup-screen').classList.add('hidden');
     document.getElementById('table-screen').classList.remove('hidden');
 
-    const players = this.buildPlayers(botCount, startingChips);
+    this.tableType = tableType;
+    const players = this.buildPlayers(tableType, config);
+    this.perspectiveId = tableType === 'mixed' ? HUMAN_ID : null;
+    this.actingHumanId = null;
+    this.pendingActingId = null;
+
     this.game = new PokerGame({
       mode,
       players,
       onEvent: (type, payload) => this.handleEvent(type, payload),
     });
 
+    document.getElementById('action-buttons').classList.toggle('spectating', tableType === 'bots');
+
     UI.clearLog();
     UI.hideResult();
     UI.hideGameOver();
     UI.showRebuy(false);
+    UI.showPassDevice(false);
     this.dealNextHand();
   },
 
   returnToLobby() {
     clearTimeout(this.botTimer);
+    clearTimeout(this.autoAdvanceTimer);
     this.game = null;
+    UI.showPassDevice(false);
     document.getElementById('table-screen').classList.add('hidden');
     document.getElementById('setup-screen').classList.remove('hidden');
   },
@@ -151,16 +269,32 @@ const App = {
   dealNextHand() {
     if (!this.game || this.game.gameOver) return;
     this.rebuyBustedBots();
-    const human = this.game.players.find((p) => p.id === HUMAN_ID);
-    if (human.chips <= 0 && !human.busted) human.busted = true;
-    if (human.busted && this.game.mode === 'cash') {
-      UI.showRebuy(true);
+
+    if (this.tableType === 'bots') {
+      UI.clearLog();
+      this.game.startHand();
       return;
     }
-    if (human.busted && this.game.mode === 'tournament') {
-      this.endTournamentForHuman();
-      return;
+
+    const humans = this.game.players.filter((p) => p.isHuman);
+    for (const h of humans) {
+      if (h.chips <= 0 && !h.busted) h.busted = true;
     }
+    const bustedHumans = humans.filter((h) => h.busted);
+
+    if (bustedHumans.length) {
+      if (this.game.mode === 'cash') {
+        UI.showRebuy(true, bustedHumans.map((h) => h.name));
+        return;
+      }
+      if (this.tableType === 'mixed') {
+        this.endTournamentForHuman();
+        return;
+      }
+      // humans-only tournament: busted players just sit out; the engine
+      // ends the game once only one player has chips left.
+    }
+
     UI.clearLog();
     this.game.startHand();
   },
@@ -179,7 +313,8 @@ const App = {
   },
 
   syncTable(options) {
-    UI.renderSeats(this.game, HUMAN_ID, options);
+    const revealIds = this.perspectiveId ? [this.perspectiveId] : [];
+    UI.renderSeats(this.game, { centerId: this.perspectiveId, revealIds, ...options });
     UI.renderCommunity(this.game.board);
     UI.renderPot(this.game.potTotal());
     UI.setHUD({
@@ -193,13 +328,14 @@ const App = {
 
   playerName(id) {
     const p = this.game.players.find((pl) => pl.id === id);
-    return p ? (p.isHuman ? 'You' : p.name) : id;
+    return p ? p.name : id;
   },
 
   handleEvent(type, payload) {
     const game = this.game;
     switch (type) {
       case 'handStart': {
+        if (this.tableType === 'humans') this.perspectiveId = null;
         UI.hideResult();
         UI.renderStreet('Preflop');
         this.syncTable({});
@@ -242,11 +378,18 @@ const App = {
       }
       case 'gameOver': {
         clearTimeout(this.botTimer);
-        const winnerName = payload.winner ? this.playerName(payload.winner.id) : null;
-        if (winnerName === 'You') {
-          UI.showGameOver('You won the tournament! 🏆');
-        } else if (winnerName) {
-          UI.showGameOver(`${winnerName} wins the tournament. Better luck next time!`);
+        clearTimeout(this.autoAdvanceTimer);
+        const winner = payload.winner;
+        const winnerName = winner ? this.playerName(winner.id) : null;
+        if (!winnerName) break;
+        if (this.tableType === 'mixed') {
+          UI.showGameOver(
+            winner.isHuman
+              ? 'You won the tournament! 🏆'
+              : `${winnerName} wins the tournament. Better luck next time!`
+          );
+        } else {
+          UI.showGameOver(`${winnerName} wins the tournament! 🏆`);
         }
         break;
       }
@@ -258,15 +401,24 @@ const App = {
   onActionOn(playerId) {
     const game = this.game;
     const player = game.players.find((p) => p.id === playerId);
-    this.syncTable({ activePlayerId: playerId });
 
     if (player.isHuman) {
+      if (this.tableType === 'humans') {
+        this.perspectiveId = null;
+        this.syncTable({ activePlayerId: playerId });
+        this.pendingActingId = playerId;
+        UI.showPassDevice(true, player.name);
+        return;
+      }
+      this.syncTable({ activePlayerId: playerId });
+      this.actingHumanId = playerId;
       this.currentLegal = game.legalActions();
       UI.configureActions(this.currentLegal);
       UI.showActionButtons(true);
       return;
     }
 
+    this.syncTable({ activePlayerId: playerId });
     UI.showActionButtons(false);
     const delay = 550 + Math.random() * 900;
     this.botTimer = setTimeout(() => {
@@ -327,6 +479,15 @@ const App = {
 
     this.syncTable({ revealAll, showdownHands: payload.showdownHands });
     UI.showResult(text);
+
+    if (this.tableType === 'bots' && this.game && !this.game.gameOver) {
+      clearTimeout(this.autoAdvanceTimer);
+      this.autoAdvanceTimer = setTimeout(() => {
+        if (!this.game || this.game.gameOver) return;
+        UI.hideResult();
+        this.dealNextHand();
+      }, 3500);
+    }
   },
 };
 

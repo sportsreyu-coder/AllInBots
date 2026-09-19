@@ -25,11 +25,42 @@
       </button>
     </div>
 
-    <div class="option-row">
+    <div class="option-row table-type-row">
+      <label>Table</label>
+    </div>
+    <div class="mode-select table-type-select">
+      <button class="mode-btn table-type-btn" data-table-type="mixed">
+        <strong>You + Bots</strong>
+        <span>Play against AI opponents.</span>
+      </button>
+      <button class="mode-btn table-type-btn" data-table-type="bots">
+        <strong>Bots Only</strong>
+        <span>Sit back and watch bots play each other.</span>
+      </button>
+      <button class="mode-btn table-type-btn" data-table-type="humans">
+        <strong>Humans Only</strong>
+        <span>Local pass-and-play with friends, no bots.</span>
+      </button>
+    </div>
+
+    <div id="mixed-options" class="option-row">
       <label for="bot-count">Opponents</label>
       <input type="range" id="bot-count" min="2" max="5" value="4" />
       <span id="bot-count-label">4 bots</span>
     </div>
+
+    <div id="bots-options" class="option-row hidden">
+      <label for="table-bot-count">Bots at table</label>
+      <input type="range" id="table-bot-count" min="2" max="6" value="6" />
+      <span id="table-bot-count-label">6 bots</span>
+    </div>
+
+    <div id="humans-options" class="option-row hidden">
+      <label for="human-count">Players</label>
+      <input type="range" id="human-count" min="2" max="6" value="3" />
+      <span id="human-count-label">3 players</span>
+    </div>
+    <div id="human-names" class="human-names hidden"></div>
 
     <div class="option-row">
       <label for="starting-chips">Starting chips</label>
@@ -79,7 +110,7 @@
   </div>
 
   <div id="rebuy-banner" class="result-banner hidden">
-    <div>You're out of chips.</div>
+    <div id="rebuy-text">You're out of chips.</div>
     <button id="rebuy-btn" class="start-btn">Rebuy &amp; Continue</button>
     <button id="quit-btn" class="ghost-btn">Leave Table</button>
   </div>
@@ -87,6 +118,12 @@
   <div id="gameover-banner" class="result-banner hidden">
     <div id="gameover-text"></div>
     <button id="restart-btn" class="start-btn">Back to Lobby</button>
+  </div>
+
+  <div id="pass-device-banner" class="result-banner hidden">
+    <div id="pass-device-text"></div>
+    <p class="fine-print">Make sure no one else can see the screen.</p>
+    <button id="pass-device-btn" class="start-btn">Show My Cards</button>
   </div>
 
   <footer class="action-bar">

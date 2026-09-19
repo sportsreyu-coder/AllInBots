@@ -17,6 +17,13 @@ Then visit `http://localhost:8080`.
 - **Cash Game** — fixed blinds, rebuy anytime you bust.
 - **Tournament** — blinds rise every 4 hands, no rebuys, last stack standing wins.
 
+## Table types
+
+- **You + Bots** — you against 2-5 AI opponents.
+- **Bots Only** — sit back and spectate as 2-6 bots play each other; hands auto-deal.
+- **Humans Only** — local pass-and-play for 2-6 people on one device. Each player's hole
+  cards stay hidden behind a "pass the device" screen until it's their turn to act.
+
 ## How the bots think
 
 Each bot has a personality (aggression, tightness, bluff frequency) layered on top of a hand-strength

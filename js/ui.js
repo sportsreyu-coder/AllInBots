@@ -17,8 +17,11 @@ const UI = {
       resultBanner: document.getElementById('result-banner'),
       resultText: document.getElementById('result-text'),
       rebuyBanner: document.getElementById('rebuy-banner'),
+      rebuyText: document.getElementById('rebuy-text'),
       gameoverBanner: document.getElementById('gameover-banner'),
       gameoverText: document.getElementById('gameover-text'),
+      passDeviceBanner: document.getElementById('pass-device-banner'),
+      passDeviceText: document.getElementById('pass-device-text'),
       logContent: document.getElementById('log-content'),
       actionButtons: document.getElementById('action-buttons'),
       foldBtn: document.getElementById('fold-btn'),
@@ -64,14 +67,15 @@ const UI = {
     return { left: `${x}%`, top: `${y}%` };
   },
 
-  renderSeats(game, humanId, options) {
-    const { revealAll = false, activePlayerId = null, showdownHands = null } = options || {};
+  renderSeats(game, options) {
+    const { revealAll = false, activePlayerId = null, showdownHands = null, centerId = null, revealIds = [] } = options || {};
     const n = game.players.length;
-    const humanIndex = game.players.findIndex((p) => p.id === humanId);
+    let centerIndex = centerId ? game.players.findIndex((p) => p.id === centerId) : -1;
+    if (centerIndex === -1) centerIndex = 0;
     this.seatsEl.innerHTML = '';
 
     game.players.forEach((p, idx) => {
-      const slot = (idx - humanIndex + n) % n;
+      const slot = (idx - centerIndex + n) % n;
       const pos = this.seatPosition(slot, n);
       const seat = document.createElement('div');
       seat.className = 'seat';
@@ -82,7 +86,7 @@ const UI = {
       if (p.id === activePlayerId) seat.classList.add('active-turn');
       if (game.dealerIndex === idx) seat.classList.add('has-dealer');
 
-      const showCards = p.id === humanId || revealAll;
+      const showCards = revealAll || revealIds.includes(p.id);
       const holeHTML = (p.holeCards || []).map((c) => this.cardHTML(c, !showCards)).join('');
 
       const showdownEntry = showdownHands && showdownHands.find((s) => s.playerId === p.id);
@@ -160,8 +164,20 @@ const UI = {
     this.els.resultBanner.classList.add('hidden');
   },
 
-  showRebuy(show) {
+  showRebuy(show, names) {
     this.els.rebuyBanner.classList.toggle('hidden', !show);
+    if (show && names && names.length) {
+      this.els.rebuyText.textContent = names.length === 1
+        ? `${names[0]} is out of chips.`
+        : `${names.join(', ')} are out of chips.`;
+    }
+  },
+
+  showPassDevice(show, name) {
+    this.els.passDeviceBanner.classList.toggle('hidden', !show);
+    if (show) {
+      this.els.passDeviceText.innerHTML = `Pass the device to <strong>${name}</strong>`;
+    }
   },
 
   showGameOver(text) {

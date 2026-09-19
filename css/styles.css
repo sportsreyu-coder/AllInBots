@@ -102,7 +102,31 @@ html, body {
 }
 .option-row label { color: var(--text-dim); flex: 0 0 auto; }
 .option-row input[type="range"] { flex: 1; }
-#bot-count-label { min-width: 62px; text-align: right; }
+#bot-count-label, #table-bot-count-label, #human-count-label { min-width: 62px; text-align: right; }
+
+.table-type-row { margin-bottom: 8px; }
+
+.table-type-select {
+  grid-template-columns: 1fr;
+  margin-bottom: 16px;
+}
+.table-type-btn { padding: 12px 14px; }
+
+.human-names {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.human-name-input {
+  background: #1d242c;
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  width: 100%;
+}
 
 select, input[type="number"] {
   background: #1d242c;
@@ -376,6 +400,7 @@ select, input[type="number"] {
   flex-wrap: wrap;
 }
 .action-buttons.disabled { opacity: 0.4; pointer-events: none; }
+.action-buttons.spectating { display: none; }
 
 .act-btn {
   padding: 12px 20px;
