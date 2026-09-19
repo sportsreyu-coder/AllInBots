@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AllInBots — Poker vs Bots</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♠️</text></svg>" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div id="setup-screen" class="screen">
+  <div class="setup-card">
+    <h1>AllIn<span class="accent">Bots</span></h1>
+    <p class="tagline">Texas Hold'em against AI opponents. No sign-up, no real money — just chips and nerve.</p>
+
+    <div class="mode-select">
+      <button class="mode-btn" data-mode="cash">
+        <strong>Cash Game</strong>
+        <span>Fixed blinds, rebuy anytime, play as long as you like.</span>
+      </button>
+      <button class="mode-btn" data-mode="tournament">
+        <strong>Tournament</strong>
+        <span>Rising blinds, no rebuys, last stack standing wins.</span>
+      </button>
+    </div>
+
+    <div class="option-row">
+      <label for="bot-count">Opponents</label>
+      <input type="range" id="bot-count" min="2" max="5" value="4" />
+      <span id="bot-count-label">4 bots</span>
+    </div>
+
+    <div class="option-row">
+      <label for="starting-chips">Starting chips</label>
+      <select id="starting-chips">
+        <option value="1000">1,000</option>
+        <option value="1500" selected>1,500</option>
+        <option value="3000">3,000</option>
+        <option value="5000">5,000</option>
+      </select>
+    </div>
+
+    <button id="start-btn" class="start-btn">Take a Seat</button>
+    <p class="fine-print">Selected mode: <span id="selected-mode-label">Cash Game</span></p>
+  </div>
+</div>
+
+<div id="table-screen" class="screen hidden">
+  <header class="hud">
+    <div class="hud-left">
+      <span class="hud-title">AllIn<span class="accent">Bots</span></span>
+      <span id="mode-badge" class="mode-badge">Cash Game</span>
+    </div>
+    <div class="hud-mid">
+      <span id="blind-info">Blinds 10 / 20</span>
+      <span id="level-info" class="hidden">Level 1 · next in 4 hands</span>
+    </div>
+    <div class="hud-right">
+      <span id="hand-number">Hand #0</span>
+      <button id="leave-btn" class="ghost-btn">Leave Table</button>
+    </div>
+  </header>
+
+  <main class="table-wrap">
+    <div id="poker-table" class="poker-table">
+      <div id="seats"></div>
+      <div class="table-center">
+        <div id="community-cards" class="community-cards"></div>
+        <div id="pot-display" class="pot-display">Pot: 0</div>
+        <div id="street-label" class="street-label"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="result-banner" class="result-banner hidden">
+    <div id="result-text"></div>
+    <button id="next-hand-btn" class="start-btn">Deal Next Hand</button>
+  </div>
+
+  <div id="rebuy-banner" class="result-banner hidden">
+    <div>You're out of chips.</div>
+    <button id="rebuy-btn" class="start-btn">Rebuy &amp; Continue</button>
+    <button id="quit-btn" class="ghost-btn">Leave Table</button>
+  </div>
+
+  <div id="gameover-banner" class="result-banner hidden">
+    <div id="gameover-text"></div>
+    <button id="restart-btn" class="start-btn">Back to Lobby</button>
+  </div>
+
+  <footer class="action-bar">
+    <div class="log-toggle-wrap">
+      <button id="log-toggle" class="ghost-btn small">Hand Log</button>
+    </div>
+    <div id="action-buttons" class="action-buttons">
+      <button id="fold-btn" class="act-btn fold">Fold</button>
+      <button id="check-call-btn" class="act-btn call">Check</button>
+      <div class="raise-controls">
+        <input type="range" id="raise-slider" min="0" max="100" value="0" />
+        <input type="number" id="raise-input" min="0" value="0" />
+        <button id="raise-btn" class="act-btn raise">Bet</button>
+      </div>
+      <button id="allin-btn" class="act-btn allin">All-In</button>
+    </div>
+  </footer>
+
+  <aside id="log-panel" class="log-panel hidden">
+    <div class="log-header">
+      <span>Hand Log</span>
+      <button id="log-close" class="ghost-btn small">×</button>
+    </div>
+    <div id="log-content" class="log-content"></div>
+  </aside>
+</div>
+
+<script src="js/deck.js"></script>
+<script src="js/handEvaluator.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
