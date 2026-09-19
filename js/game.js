@@ -418,3 +418,7 @@ class PokerGame {
     }
   }
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { PokerGame, STREETS, TOURNAMENT_BLIND_LEVELS, HANDS_PER_LEVEL };
+}

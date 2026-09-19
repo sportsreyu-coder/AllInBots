@@ -97,3 +97,7 @@ function evaluateBest(cards) {
   }
   return { score: best, cards: bestCombo, name: HAND_NAMES[best[0]] };
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { HAND_NAMES, evaluate5, compareScores, evaluateBest };
+}

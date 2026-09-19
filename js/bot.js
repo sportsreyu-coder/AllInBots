@@ -130,3 +130,7 @@ function decideBotAction(bot, holeCards, board, ctx) {
 
   return { action: 'call' };
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { BOT_PERSONALITIES, chenScore, preflopStrength, estimateEquity, decideBotAction };
+}

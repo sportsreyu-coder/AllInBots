@@ -37,9 +37,9 @@
         <strong>Bots Only</strong>
         <span>Sit back and watch bots play each other.</span>
       </button>
-      <button class="mode-btn table-type-btn" data-table-type="humans">
+      <button class="mode-btn table-type-btn" data-table-type="online">
         <strong>Humans Only</strong>
-        <span>Local pass-and-play with friends, no bots.</span>
+        <span>Online multiplayer &mdash; friends join from their own device with a room code or link.</span>
       </button>
     </div>
 
@@ -55,14 +55,39 @@
       <span id="table-bot-count-label">6 bots</span>
     </div>
 
-    <div id="humans-options" class="option-row hidden">
-      <label for="human-count">Players</label>
-      <input type="range" id="human-count" min="2" max="6" value="3" />
-      <span id="human-count-label">3 players</span>
-    </div>
-    <div id="human-names" class="human-names hidden"></div>
+    <div id="online-options" class="hidden">
+      <div class="online-tabs">
+        <button id="online-tab-create" class="online-tab selected" type="button">Create Room</button>
+        <button id="online-tab-join" class="online-tab" type="button">Join Room</button>
+      </div>
 
-    <div class="option-row">
+      <div id="online-create-panel">
+        <div class="option-row">
+          <label for="online-name-create">Your name</label>
+          <input type="text" id="online-name-create" maxlength="16" placeholder="Your name" />
+        </div>
+        <div class="option-row">
+          <label for="online-bot-fill">Fill empty seats with bots</label>
+          <input type="range" id="online-bot-fill" min="0" max="4" value="0" />
+          <span id="online-bot-fill-label">0 bots</span>
+        </div>
+      </div>
+
+      <div id="online-join-panel" class="hidden">
+        <div class="option-row">
+          <label for="online-name-join">Your name</label>
+          <input type="text" id="online-name-join" maxlength="16" placeholder="Your name" />
+        </div>
+        <div class="option-row">
+          <label for="online-room-code">Room code</label>
+          <input type="text" id="online-room-code" maxlength="4" placeholder="e.g. 7X2K" class="room-code-input" />
+        </div>
+      </div>
+
+      <p id="online-error" class="fine-print online-error hidden"></p>
+    </div>
+
+    <div id="chips-option-row" class="option-row">
       <label for="starting-chips">Starting chips</label>
       <select id="starting-chips">
         <option value="1000">1,000</option>
@@ -73,7 +98,27 @@
     </div>
 
     <button id="start-btn" class="start-btn">Take a Seat</button>
+    <button id="online-create-btn" class="start-btn hidden">Create Room</button>
+    <button id="online-join-btn" class="start-btn hidden">Join Room</button>
     <p class="fine-print">Selected mode: <span id="selected-mode-label">Cash Game</span></p>
+  </div>
+</div>
+
+<div id="lobby-screen" class="screen hidden">
+  <div class="setup-card">
+    <h1>AllIn<span class="accent">Bots</span></h1>
+    <p class="tagline">Room <strong id="lobby-code">----</strong> &mdash; share the code or link so friends can join from their own device.</p>
+
+    <div class="lobby-link-row">
+      <input type="text" id="lobby-link" readonly />
+      <button id="lobby-copy-btn" class="ghost-btn">Copy Link</button>
+    </div>
+
+    <div id="lobby-players" class="lobby-players"></div>
+
+    <button id="lobby-start-btn" class="start-btn hidden">Start Game</button>
+    <p id="lobby-wait-text" class="fine-print hidden">Waiting for the host to start the game&hellip;</p>
+    <button id="lobby-leave-btn" class="ghost-btn lobby-leave-btn">Leave Room</button>
   </div>
 </div>
 
@@ -120,12 +165,6 @@
     <button id="restart-btn" class="start-btn">Back to Lobby</button>
   </div>
 
-  <div id="pass-device-banner" class="result-banner hidden">
-    <div id="pass-device-text"></div>
-    <p class="fine-print">Make sure no one else can see the screen.</p>
-    <button id="pass-device-btn" class="start-btn">Show My Cards</button>
-  </div>
-
   <footer class="action-bar">
     <div class="log-toggle-wrap">
       <button id="log-toggle" class="ghost-btn small">Hand Log</button>
@@ -156,6 +195,8 @@
 <script src="js/bot.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/net.js"></script>
 <script src="js/app.js"></script>
+<script src="js/online.js"></script>
 </body>
 </html>

@@ -20,8 +20,6 @@ const UI = {
       rebuyText: document.getElementById('rebuy-text'),
       gameoverBanner: document.getElementById('gameover-banner'),
       gameoverText: document.getElementById('gameover-text'),
-      passDeviceBanner: document.getElementById('pass-device-banner'),
-      passDeviceText: document.getElementById('pass-device-text'),
       logContent: document.getElementById('log-content'),
       actionButtons: document.getElementById('action-buttons'),
       foldBtn: document.getElementById('fold-btn'),
@@ -34,7 +32,9 @@ const UI = {
   },
 
   cardHTML(card, faceDown) {
-    if (faceDown) {
+    // A server-redacted opponent card arrives as {hidden:true} with no rank/suit;
+    // render it as a back regardless of the faceDown flag.
+    if (faceDown || !card || card.hidden) {
       return `<div class="card back"></div>`;
     }
     const red = isRedSuit(card.suit);
@@ -85,6 +85,7 @@ const UI = {
       if (p.folded) seat.classList.add('folded');
       if (p.id === activePlayerId) seat.classList.add('active-turn');
       if (game.dealerIndex === idx) seat.classList.add('has-dealer');
+      if (p.connected === false) seat.classList.add('disconnected');
 
       const showCards = revealAll || revealIds.includes(p.id);
       const holeHTML = (p.holeCards || []).map((c) => this.cardHTML(c, !showCards)).join('');
@@ -100,6 +101,7 @@ const UI = {
           ${p.betThisStreet ? `<div class="seat-bet">Bet ${p.betThisStreet}</div>` : ''}
           ${p.allIn ? '<div class="seat-tag allin">ALL-IN</div>' : ''}
           ${p.folded && !p.busted ? '<div class="seat-tag folded">FOLD</div>' : ''}
+          ${p.connected === false ? '<div class="seat-tag offline">OFFLINE</div>' : ''}
           ${handLabel}
         </div>
       `;
@@ -170,13 +172,6 @@ const UI = {
       this.els.rebuyText.textContent = names.length === 1
         ? `${names[0]} is out of chips.`
         : `${names.join(', ')} are out of chips.`;
-    }
-  },
-
-  showPassDevice(show, name) {
-    this.els.passDeviceBanner.classList.toggle('hidden', !show);
-    if (show) {
-      this.els.passDeviceText.innerHTML = `Pass the device to <strong>${name}</strong>`;
     }
   },
 
