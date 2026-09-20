@@ -1,13 +1,24 @@
-// Wires the setup screen and table screen to the PokerGame engine.
+// Wires the setup screen and table screen to the PokerGame engine for the two
+// local (single-browser) table types. Online multiplayer's lobby and network
+// wiring lives in js/online.js; it drives this same table-screen UI by
+// setting App.engine = 'online' and feeding it server snapshots instead of a
+// local `game` instance — see App.humanAct and the table-screen bindings
+// below for the branch points.
 
 const HUMAN_ID = 'human';
 
 const App = {
   game: null,
+  engine: 'local', // 'local' | 'online'
   selectedMode: 'cash',
+  selectedTableType: 'mixed',
+  tableType: 'mixed',
   startingChips: 1500,
   currentLegal: null,
   botTimer: null,
+  autoAdvanceTimer: null,
+  perspectiveId: null,
+  actingHumanId: null,
 
   init() {
     UI.init();
@@ -16,7 +27,7 @@ const App = {
   },
 
   bindSetupScreen() {
-    const modeButtons = document.querySelectorAll('.mode-btn');
+    const modeButtons = document.querySelectorAll('.mode-btn[data-mode]');
     modeButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         modeButtons.forEach((b) => b.classList.remove('selected'));
@@ -28,34 +39,96 @@ const App = {
     });
     modeButtons[0].classList.add('selected');
 
+    const tableTypeButtons = document.querySelectorAll('.table-type-btn');
+    tableTypeButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tableTypeButtons.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedTableType = btn.dataset.tableType;
+        this.updateTableTypeOptions();
+      });
+    });
+    tableTypeButtons[0].classList.add('selected');
+    this.updateTableTypeOptions();
+
     const botCountInput = document.getElementById('bot-count');
     const botCountLabel = document.getElementById('bot-count-label');
     botCountInput.addEventListener('input', () => {
       botCountLabel.textContent = `${botCountInput.value} bots`;
     });
 
+    const tableBotCountInput = document.getElementById('table-bot-count');
+    const tableBotCountLabel = document.getElementById('table-bot-count-label');
+    tableBotCountInput.addEventListener('input', () => {
+      tableBotCountLabel.textContent = `${tableBotCountInput.value} bots`;
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
-      const botCount = Number(document.getElementById('bot-count').value);
       this.startingChips = Number(document.getElementById('starting-chips').value);
-      this.beginGame(this.selectedMode, botCount, this.startingChips);
+      this.beginGameFromSetup();
+    });
+
+    document.getElementById('open-solver-btn').addEventListener('click', () => {
+      SolverScreen.open();
     });
   },
 
+  // Toggles which option panel is visible for the selected table type. The
+  // 'online' panel's own Create/Join tab switching is handled by OnlineApp.
+  updateTableTypeOptions() {
+    const type = this.selectedTableType;
+    document.getElementById('mixed-options').classList.toggle('hidden', type !== 'mixed');
+    document.getElementById('bots-options').classList.toggle('hidden', type !== 'bots');
+    document.getElementById('online-options').classList.toggle('hidden', type !== 'online');
+    document.getElementById('start-btn').classList.toggle('hidden', type === 'online');
+    if (type === 'online' && typeof OnlineApp !== 'undefined') {
+      OnlineApp.onTableTypeSelected();
+    } else {
+      document.getElementById('chips-option-row').classList.remove('hidden');
+      document.getElementById('online-create-btn').classList.add('hidden');
+      document.getElementById('online-join-btn').classList.add('hidden');
+    }
+  },
+
+  beginGameFromSetup() {
+    const tableType = this.selectedTableType;
+    const config = { startingChips: this.startingChips };
+    if (tableType === 'mixed') {
+      config.botCount = Number(document.getElementById('bot-count').value);
+    } else if (tableType === 'bots') {
+      config.botCount = Number(document.getElementById('table-bot-count').value);
+    }
+    this.beginGame(tableType, this.selectedMode, config);
+  },
+
   bindTableScreen() {
-    document.getElementById('leave-btn').addEventListener('click', () => this.returnToLobby());
-    document.getElementById('quit-btn').addEventListener('click', () => this.returnToLobby());
-    document.getElementById('restart-btn').addEventListener('click', () => this.returnToLobby());
+    document.getElementById('leave-btn').addEventListener('click', () => this.leaveTable());
+    document.getElementById('quit-btn').addEventListener('click', () => this.leaveTable());
+    document.getElementById('restart-btn').addEventListener('click', () => this.leaveTable());
 
     document.getElementById('rebuy-btn').addEventListener('click', () => {
-      const human = this.game.players.find((p) => p.id === HUMAN_ID);
-      human.chips = this.startingChips;
-      human.busted = false;
+      if (this.engine === 'online') {
+        Net.send({ type: 'rebuy' });
+        UI.showRebuy(false);
+        return;
+      }
+      for (const p of this.game.players) {
+        if (p.isHuman && p.busted) {
+          p.chips = this.startingChips;
+          p.busted = false;
+        }
+      }
       UI.showRebuy(false);
       this.dealNextHand();
     });
 
     document.getElementById('next-hand-btn').addEventListener('click', () => {
+      clearTimeout(this.autoAdvanceTimer);
       UI.hideResult();
+      if (this.engine === 'online') {
+        Net.send({ type: 'nextHand' });
+        return;
+      }
       this.dealNextHand();
     });
 
@@ -87,42 +160,66 @@ const App = {
     input.addEventListener('input', () => { slider.value = input.value; });
   },
 
+  leaveTable() {
+    if (this.engine === 'online') {
+      OnlineApp.leaveGame();
+      return;
+    }
+    this.returnToLobby();
+  },
+
   humanAct(action, amount) {
     if (!this.currentLegal) return;
     if (action === 'call' && this.currentLegal.toCall === 0) action = 'check';
     UI.showActionButtons(false);
-    this.game.applyAction(HUMAN_ID, action, amount);
+    if (this.engine === 'online') {
+      Net.send({ type: 'action', action, amount });
+      return;
+    }
+    if (!this.actingHumanId) return;
+    this.game.applyAction(this.actingHumanId, action, amount);
   },
 
-  buildPlayers(botCount, startingChips) {
+  buildPlayers(tableType, config) {
     const shuffledPersonalities = [...BOT_PERSONALITIES];
     shuffle(shuffledPersonalities);
-    const players = [
-      { id: HUMAN_ID, name: 'You', isHuman: true, chips: startingChips },
-    ];
-    for (let i = 0; i < botCount; i++) {
-      const personality = shuffledPersonalities[i % shuffledPersonalities.length];
-      players.push({
-        id: `bot-${i}`,
-        name: personality.name,
-        isHuman: false,
-        chips: startingChips,
-        personality,
-      });
+    const players = [];
+
+    if (tableType === 'mixed') {
+      players.push({ id: HUMAN_ID, name: 'You', isHuman: true, chips: config.startingChips });
+    }
+    if (tableType === 'mixed' || tableType === 'bots') {
+      const names = pickBotNames(config.botCount);
+      for (let i = 0; i < config.botCount; i++) {
+        const personality = shuffledPersonalities[i % shuffledPersonalities.length];
+        players.push({
+          id: `bot-${i}`,
+          name: names[i],
+          isHuman: false,
+          chips: config.startingChips,
+          personality,
+        });
+      }
     }
     return players;
   },
 
-  beginGame(mode, botCount, startingChips) {
-    document.getElementById('setup-screen').classList.add('hidden');
-    document.getElementById('table-screen').classList.remove('hidden');
+  beginGame(tableType, mode, config) {
+    this.showScreen('table');
 
-    const players = this.buildPlayers(botCount, startingChips);
+    this.engine = 'local';
+    this.tableType = tableType;
+    const players = this.buildPlayers(tableType, config);
+    this.perspectiveId = tableType === 'mixed' ? HUMAN_ID : null;
+    this.actingHumanId = null;
+
     this.game = new PokerGame({
       mode,
       players,
       onEvent: (type, payload) => this.handleEvent(type, payload),
     });
+
+    document.getElementById('action-buttons').classList.toggle('spectating', tableType === 'bots');
 
     UI.clearLog();
     UI.hideResult();
@@ -131,11 +228,18 @@ const App = {
     this.dealNextHand();
   },
 
+  showScreen(name) {
+    document.getElementById('setup-screen').classList.toggle('hidden', name !== 'setup');
+    document.getElementById('lobby-screen').classList.toggle('hidden', name !== 'lobby');
+    document.getElementById('table-screen').classList.toggle('hidden', name !== 'table');
+    document.getElementById('solver-screen').classList.toggle('hidden', name !== 'solver');
+  },
+
   returnToLobby() {
     clearTimeout(this.botTimer);
+    clearTimeout(this.autoAdvanceTimer);
     this.game = null;
-    document.getElementById('table-screen').classList.add('hidden');
-    document.getElementById('setup-screen').classList.remove('hidden');
+    this.showScreen('setup');
   },
 
   rebuyBustedBots() {
@@ -151,16 +255,24 @@ const App = {
   dealNextHand() {
     if (!this.game || this.game.gameOver) return;
     this.rebuyBustedBots();
-    const human = this.game.players.find((p) => p.id === HUMAN_ID);
+
+    if (this.tableType === 'bots') {
+      UI.clearLog();
+      this.game.startHand();
+      return;
+    }
+
+    const human = this.game.players.find((p) => p.isHuman);
     if (human.chips <= 0 && !human.busted) human.busted = true;
-    if (human.busted && this.game.mode === 'cash') {
-      UI.showRebuy(true);
+    if (human.busted) {
+      if (this.game.mode === 'cash') {
+        UI.showRebuy(true, [human.name]);
+      } else {
+        this.endTournamentForHuman();
+      }
       return;
     }
-    if (human.busted && this.game.mode === 'tournament') {
-      this.endTournamentForHuman();
-      return;
-    }
+
     UI.clearLog();
     this.game.startHand();
   },
@@ -179,7 +291,8 @@ const App = {
   },
 
   syncTable(options) {
-    UI.renderSeats(this.game, HUMAN_ID, options);
+    const revealIds = this.perspectiveId ? [this.perspectiveId] : [];
+    UI.renderSeats(this.game, { centerId: this.perspectiveId, revealIds, ...options });
     UI.renderCommunity(this.game.board);
     UI.renderPot(this.game.potTotal());
     UI.setHUD({
@@ -193,7 +306,7 @@ const App = {
 
   playerName(id) {
     const p = this.game.players.find((pl) => pl.id === id);
-    return p ? (p.isHuman ? 'You' : p.name) : id;
+    return p ? p.name : id;
   },
 
   handleEvent(type, payload) {
@@ -242,11 +355,18 @@ const App = {
       }
       case 'gameOver': {
         clearTimeout(this.botTimer);
-        const winnerName = payload.winner ? this.playerName(payload.winner.id) : null;
-        if (winnerName === 'You') {
-          UI.showGameOver('You won the tournament! 🏆');
-        } else if (winnerName) {
-          UI.showGameOver(`${winnerName} wins the tournament. Better luck next time!`);
+        clearTimeout(this.autoAdvanceTimer);
+        const winner = payload.winner;
+        const winnerName = winner ? this.playerName(winner.id) : null;
+        if (!winnerName) break;
+        if (this.tableType === 'mixed') {
+          UI.showGameOver(
+            winner.isHuman
+              ? 'You won the tournament! 🏆'
+              : `${winnerName} wins the tournament. Better luck next time!`
+          );
+        } else {
+          UI.showGameOver(`${winnerName} wins the tournament! 🏆`);
         }
         break;
       }
@@ -258,15 +378,17 @@ const App = {
   onActionOn(playerId) {
     const game = this.game;
     const player = game.players.find((p) => p.id === playerId);
-    this.syncTable({ activePlayerId: playerId });
 
     if (player.isHuman) {
+      this.syncTable({ activePlayerId: playerId });
+      this.actingHumanId = playerId;
       this.currentLegal = game.legalActions();
       UI.configureActions(this.currentLegal);
       UI.showActionButtons(true);
       return;
     }
 
+    this.syncTable({ activePlayerId: playerId });
     UI.showActionButtons(false);
     const delay = 550 + Math.random() * 900;
     this.botTimer = setTimeout(() => {
@@ -283,6 +405,7 @@ const App = {
         canCheck: legal.canCheck,
         street: game.street,
         opponentsInHand: Math.max(0, opponentsInHand),
+        tendencies: game.tableTendencies(playerId),
       });
 
       if (decision.action === 'fold' && legal.canCheck) {
@@ -327,6 +450,15 @@ const App = {
 
     this.syncTable({ revealAll, showdownHands: payload.showdownHands });
     UI.showResult(text);
+
+    if (this.tableType === 'bots' && this.game && !this.game.gameOver) {
+      clearTimeout(this.autoAdvanceTimer);
+      this.autoAdvanceTimer = setTimeout(() => {
+        if (!this.game || this.game.gameOver) return;
+        UI.hideResult();
+        this.dealNextHand();
+      }, 3500);
+    }
   },
 };
 

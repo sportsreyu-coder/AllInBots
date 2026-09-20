@@ -1,14 +1,39 @@
 // Bot AI: preflop heuristic (Chen formula) + postflop Monte Carlo equity estimate,
 // combined with pot odds and a per-bot personality to pick an action.
-
+//
+// Each personality carries an `adaptivity` (0-1): how much it leans into
+// tendencies read off the table (see adaptedPersonality() below) on top of
+// its baseline dials, and a `mixNoise` multiplier on decision randomness —
+// archetypes like the GTO Nerd look more "mixed strategy", tight ones like
+// Rock/Nit look more deterministic. `id` is never shown in the UI — display
+// names are assigned separately via pickBotNames() so a bot's play style
+// isn't visible from its name.
 const BOT_PERSONALITIES = [
-  { name: 'Rock', aggression: 0.15, tightness: 0.72, bluff: 0.03 },
-  { name: 'Shark', aggression: 0.55, tightness: 0.55, bluff: 0.14 },
-  { name: 'Maniac', aggression: 0.85, tightness: 0.28, bluff: 0.28 },
-  { name: 'Calling Station', aggression: 0.2, tightness: 0.3, bluff: 0.02 },
-  { name: 'Grinder', aggression: 0.4, tightness: 0.6, bluff: 0.09 },
-  { name: 'Wildcard', aggression: 0.65, tightness: 0.4, bluff: 0.2 },
+  { id: 'nit', aggression: 0.18, tightness: 0.85, bluff: 0.02, adaptivity: 0.15, mixNoise: 0.6 },
+  { id: 'callingStation', aggression: 0.15, tightness: 0.22, bluff: 0.03, adaptivity: 0.2, mixNoise: 0.8 },
+  { id: 'volatileShover', aggression: 0.88, tightness: 0.32, bluff: 0.3, adaptivity: 0.7, mixNoise: 1.1 },
+  { id: 'gtoNerd', aggression: 0.5, tightness: 0.55, bluff: 0.18, adaptivity: 0.08, mixNoise: 1.4 },
+  { id: 'grinder', aggression: 0.42, tightness: 0.6, bluff: 0.1, adaptivity: 0.55, mixNoise: 0.9 },
+  { id: 'maniac', aggression: 0.85, tightness: 0.25, bluff: 0.28, adaptivity: 0.4, mixNoise: 1.2 },
+  { id: 'rock', aggression: 0.12, tightness: 0.78, bluff: 0.02, adaptivity: 0.1, mixNoise: 0.5 },
+  { id: 'wildcard', aggression: 0.6, tightness: 0.38, bluff: 0.2, adaptivity: 0.45, mixNoise: 1.3 },
 ];
+
+// Generic display names, unrelated to personality, so a seat's name never
+// hints at how that bot plays.
+const BOT_DISPLAY_NAMES = [
+  'Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Sam', 'Drew',
+  'Jamie', 'Avery', 'Quinn', 'Reese', 'Skyler', 'Rowan', 'Emerson', 'Finley',
+  'Harper', 'Kendall', 'Logan', 'Parker', 'Peyton', 'Sawyer', 'Blair', 'Dakota',
+];
+
+function pickBotNames(count) {
+  const pool = [...BOT_DISPLAY_NAMES];
+  shuffle(pool);
+  const names = [];
+  for (let i = 0; i < count; i++) names.push(pool[i % pool.length]);
+  return names;
+}
 
 function chenScore(c1, c2) {
   const high = c1.rank >= c2.rank ? c1 : c2;
@@ -81,29 +106,59 @@ function estimateEquity(holeCards, board, opponents, iterations = 200) {
   return (wins + ties * 0.5) / iterations;
 }
 
+// Nudges a personality's core dials toward exploiting observed table
+// tendencies (see PokerGame.tableTendencies), scaled by how willing this
+// archetype is to adapt. adaptivity 0 = plays its baseline no matter what
+// (the GTO Nerd barely moves); adaptivity near 1 leans hard into reads (the
+// Volatile Shover swings a lot). This is deliberately light-touch — a bot
+// picking up on the table, not a full exploitative solver.
+function adaptedPersonality(personality, tendencies) {
+  const adapt = personality.adaptivity || 0;
+  if (!tendencies || adapt <= 0) {
+    return { aggression: personality.aggression, tightness: personality.tightness, bluff: personality.bluff };
+  }
+
+  const foldSkew = tendencies.avgFoldToRaise - 0.5; // + = table folds a lot to raises
+  const looseSkew = tendencies.avgVpip - 0.5;        // + = table plays loose preflop
+  const stationy = tendencies.avgFoldToRaise < 0.35 && tendencies.avgVpip > 0.55;
+
+  let bluffAdj = foldSkew * 0.4 * adapt;
+  if (stationy) bluffAdj -= 0.15 * adapt; // calling stations punish bluffs -- cut them hard
+  const aggroAdj = foldSkew * 0.3 * adapt;
+  const tightAdj = -looseSkew * 0.15 * adapt;
+
+  return {
+    bluff: Math.max(0, Math.min(0.6, personality.bluff + bluffAdj)),
+    aggression: Math.max(0.05, Math.min(0.95, personality.aggression + aggroAdj)),
+    tightness: Math.max(0.1, Math.min(0.9, personality.tightness + tightAdj)),
+  };
+}
+
 // Decide a bot action. All bet-sized amounts are expressed as a TOTAL target for the
 // player's betThisStreet (matching PokerGame.legalActions() / applyAction() semantics),
 // not as an incremental chip amount.
-// ctx = { toCall, pot, currentBet, minRaiseTotal, maxRaiseTotal, canCheck, street, opponentsInHand }
+// ctx = { toCall, pot, currentBet, minRaiseTotal, maxRaiseTotal, canCheck, street, opponentsInHand, tendencies }
 function decideBotAction(bot, holeCards, board, ctx) {
   const personality = bot.personality;
+  const { aggression, tightness, bluff } = adaptedPersonality(personality, ctx.tendencies);
+
   const equity = board.length === 0
     ? preflopStrength(holeCards[0], holeCards[1])
     : estimateEquity(holeCards, board, ctx.opponentsInHand, 150);
 
   const potOdds = ctx.toCall > 0 ? ctx.toCall / (ctx.pot + ctx.toCall) : 0;
-  const randomFactor = (Math.random() - 0.5) * 0.12;
+  const randomFactor = (Math.random() - 0.5) * 0.12 * (personality.mixNoise || 1);
   const effectiveEquity = equity + randomFactor;
-  const bluffing = Math.random() < personality.bluff && ctx.street !== 'preflop';
+  const bluffing = Math.random() < bluff && ctx.street !== 'preflop';
   const perceivedEquity = bluffing ? Math.max(effectiveEquity, 0.75) : effectiveEquity;
 
-  const foldThreshold = personality.tightness * 0.55;
+  const foldThreshold = tightness * 0.55;
   const canPutMoreIn = ctx.maxRaiseTotal > ctx.currentBet;
 
   if (ctx.toCall === 0) {
-    const wantsToBet = perceivedEquity > 0.5 + (1 - personality.aggression) * 0.25 || bluffing;
+    const wantsToBet = perceivedEquity > 0.5 + (1 - aggression) * 0.25 || bluffing;
     if (wantsToBet && canPutMoreIn) {
-      const sizeFrac = 0.35 + personality.aggression * 0.55 + Math.random() * 0.15;
+      const sizeFrac = 0.35 + aggression * 0.55 + Math.random() * 0.15;
       const total = Math.max(ctx.minRaiseTotal, ctx.currentBet + Math.round(ctx.pot * sizeFrac));
       return { action: 'bet', amount: Math.min(total, ctx.maxRaiseTotal) };
     }
@@ -111,15 +166,15 @@ function decideBotAction(bot, holeCards, board, ctx) {
   }
 
   // Facing a bet.
-  if (perceivedEquity + 0.02 < potOdds * (1.05 - personality.aggression * 0.3) && !bluffing) {
+  if (perceivedEquity + 0.02 < potOdds * (1.05 - aggression * 0.3) && !bluffing) {
     if (perceivedEquity < foldThreshold || perceivedEquity < potOdds) {
       return { action: 'fold' };
     }
   }
 
-  const raiseChance = personality.aggression * (0.25 + perceivedEquity * 0.5);
+  const raiseChance = aggression * (0.25 + perceivedEquity * 0.5);
   if ((perceivedEquity > 0.62 || bluffing) && Math.random() < raiseChance && ctx.maxRaiseTotal > ctx.currentBet) {
-    const sizeFrac = 0.5 + personality.aggression * 0.7 + Math.random() * 0.2;
+    const sizeFrac = 0.5 + aggression * 0.7 + Math.random() * 0.2;
     const total = Math.max(ctx.minRaiseTotal, ctx.currentBet + Math.round((ctx.pot + ctx.toCall) * sizeFrac));
     return { action: 'raise', amount: Math.min(total, ctx.maxRaiseTotal) };
   }
@@ -129,4 +184,11 @@ function decideBotAction(bot, holeCards, board, ctx) {
   }
 
   return { action: 'call' };
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    BOT_PERSONALITIES, BOT_DISPLAY_NAMES, pickBotNames,
+    chenScore, preflopStrength, estimateEquity, adaptedPersonality, decideBotAction,
+  };
 }

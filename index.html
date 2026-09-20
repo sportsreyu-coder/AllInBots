@@ -11,7 +11,10 @@
 
 <div id="setup-screen" class="screen">
   <div class="setup-card">
-    <h1>AllIn<span class="accent">Bots</span></h1>
+    <div class="setup-card-header">
+      <h1>AllIn<span class="accent">Bots</span></h1>
+      <button id="open-solver-btn" class="ghost-btn small">Preflop Solver</button>
+    </div>
     <p class="tagline">Texas Hold'em against AI opponents. No sign-up, no real money — just chips and nerve.</p>
 
     <div class="mode-select">
@@ -25,13 +28,69 @@
       </button>
     </div>
 
-    <div class="option-row">
+    <div class="option-row table-type-row">
+      <label>Table</label>
+    </div>
+    <div class="mode-select table-type-select">
+      <button class="mode-btn table-type-btn" data-table-type="mixed">
+        <strong>You + Bots</strong>
+        <span>Play against AI opponents.</span>
+      </button>
+      <button class="mode-btn table-type-btn" data-table-type="bots">
+        <strong>Bots Only</strong>
+        <span>Sit back and watch bots play each other.</span>
+      </button>
+      <button class="mode-btn table-type-btn" data-table-type="online">
+        <strong>Humans Only</strong>
+        <span>Online multiplayer &mdash; friends join from their own device with a room code or link.</span>
+      </button>
+    </div>
+
+    <div id="mixed-options" class="option-row">
       <label for="bot-count">Opponents</label>
       <input type="range" id="bot-count" min="2" max="5" value="4" />
       <span id="bot-count-label">4 bots</span>
     </div>
 
-    <div class="option-row">
+    <div id="bots-options" class="option-row hidden">
+      <label for="table-bot-count">Bots at table</label>
+      <input type="range" id="table-bot-count" min="2" max="6" value="6" />
+      <span id="table-bot-count-label">6 bots</span>
+    </div>
+
+    <div id="online-options" class="hidden">
+      <div class="online-tabs">
+        <button id="online-tab-create" class="online-tab selected" type="button">Create Room</button>
+        <button id="online-tab-join" class="online-tab" type="button">Join Room</button>
+      </div>
+
+      <div id="online-create-panel">
+        <div class="option-row">
+          <label for="online-name-create">Your name</label>
+          <input type="text" id="online-name-create" maxlength="16" placeholder="Your name" />
+        </div>
+        <div class="option-row">
+          <label for="online-bot-fill">Fill empty seats with bots</label>
+          <input type="range" id="online-bot-fill" min="0" max="4" value="0" />
+          <span id="online-bot-fill-label">0 bots</span>
+        </div>
+      </div>
+
+      <div id="online-join-panel" class="hidden">
+        <div class="option-row">
+          <label for="online-name-join">Your name</label>
+          <input type="text" id="online-name-join" maxlength="16" placeholder="Your name" />
+        </div>
+        <div class="option-row">
+          <label for="online-room-code">Room code</label>
+          <input type="text" id="online-room-code" maxlength="4" placeholder="e.g. 7X2K" class="room-code-input" />
+        </div>
+      </div>
+
+      <p id="online-error" class="fine-print online-error hidden"></p>
+    </div>
+
+    <div id="chips-option-row" class="option-row">
       <label for="starting-chips">Starting chips</label>
       <select id="starting-chips">
         <option value="1000">1,000</option>
@@ -42,7 +101,98 @@
     </div>
 
     <button id="start-btn" class="start-btn">Take a Seat</button>
+    <button id="online-create-btn" class="start-btn hidden">Create Room</button>
+    <button id="online-join-btn" class="start-btn hidden">Join Room</button>
     <p class="fine-print">Selected mode: <span id="selected-mode-label">Cash Game</span></p>
+  </div>
+</div>
+
+<div id="lobby-screen" class="screen hidden">
+  <div class="setup-card">
+    <h1>AllIn<span class="accent">Bots</span></h1>
+    <p class="tagline">Room <strong id="lobby-code">----</strong> &mdash; share the code or link so friends can join from their own device.</p>
+
+    <div class="lobby-link-row">
+      <input type="text" id="lobby-link" readonly />
+      <button id="lobby-copy-btn" class="ghost-btn">Copy Link</button>
+    </div>
+
+    <div id="lobby-players" class="lobby-players"></div>
+
+    <button id="lobby-start-btn" class="start-btn hidden">Start Game</button>
+    <p id="lobby-wait-text" class="fine-print hidden">Waiting for the host to start the game&hellip;</p>
+    <button id="lobby-leave-btn" class="ghost-btn lobby-leave-btn">Leave Room</button>
+  </div>
+</div>
+
+<div id="solver-screen" class="screen hidden">
+  <div class="solver-card">
+    <header class="solver-header">
+      <div>
+        <h1>AllIn<span class="accent">Bots</span> <span class="solver-badge">Solver</span></h1>
+        <p class="tagline solver-tagline">A live preflop range, recomputed for your table — not looked up from a chart.</p>
+      </div>
+      <button id="solver-back-btn" class="ghost-btn">Back to Lobby</button>
+    </header>
+
+    <div class="solver-body">
+      <div class="solver-controls">
+        <div class="option-row">
+          <label for="solver-players">Players at table</label>
+          <input type="range" id="solver-players" min="2" max="9" value="6" />
+          <span id="solver-players-label">6 players</span>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-position">Position</label>
+          <select id="solver-position">
+            <option value="early">Early</option>
+            <option value="middle" selected>Middle</option>
+            <option value="late">Late</option>
+            <option value="button">Button</option>
+            <option value="sb">Small Blind</option>
+            <option value="bb">Big Blind</option>
+          </select>
+        </div>
+
+        <label class="solver-controls-label">Game type</label>
+        <div class="mode-select solver-type-select">
+          <button class="mode-btn solver-type-btn selected" data-game-type="cash">
+            <strong>Cash Game</strong>
+            <span>Pure chip-EV — no ICM pressure.</span>
+          </button>
+          <button class="mode-btn solver-type-btn" data-game-type="tournament">
+            <strong>Tournament</strong>
+            <span>ICM trims marginal spots as stacks get short.</span>
+          </button>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-stack">Stack size</label>
+          <input type="range" id="solver-stack" min="5" max="200" value="100" />
+          <span id="solver-stack-label">100 BB</span>
+        </div>
+
+        <div class="option-row">
+          <label for="solver-bluff">Bluff frequency</label>
+          <input type="range" id="solver-bluff" min="0" max="60" value="20" />
+          <span id="solver-bluff-label">20%</span>
+        </div>
+
+        <p class="fine-print solver-disclaimer">
+          A heuristic teaching tool built from hand-strength percentiles, implied odds, and a
+          simplified ICM factor — not a certified game-theory solve.
+        </p>
+      </div>
+
+      <div class="solver-output">
+        <div id="solver-summary" class="solver-summary"></div>
+        <div class="solver-grid-wrap">
+          <div id="solver-grid" class="solver-grid"></div>
+        </div>
+        <div id="solver-legend" class="solver-legend"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -79,7 +229,7 @@
   </div>
 
   <div id="rebuy-banner" class="result-banner hidden">
-    <div>You're out of chips.</div>
+    <div id="rebuy-text">You're out of chips.</div>
     <button id="rebuy-btn" class="start-btn">Rebuy &amp; Continue</button>
     <button id="quit-btn" class="ghost-btn">Leave Table</button>
   </div>
@@ -117,8 +267,12 @@
 <script src="js/deck.js"></script>
 <script src="js/handEvaluator.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/solver.js"></script>
 <script src="js/game.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/net.js"></script>
 <script src="js/app.js"></script>
+<script src="js/online.js"></script>
+<script src="js/solverScreen.js"></script>
 </body>
 </html>

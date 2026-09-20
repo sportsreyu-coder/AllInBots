@@ -32,6 +32,12 @@ class PokerGame {
     this.pots = [];
     this.street = 'preflop';
     this.gameOver = false;
+    this.raiseOccurredThisStreet = false;
+    for (const p of this.players) {
+      if (!p.stats) {
+        p.stats = { hands: 0, vpipHands: 0, facedRaises: 0, foldedToRaise: 0, aggressiveActions: 0, totalActions: 0 };
+      }
+    }
   }
 
   get blinds() {
@@ -74,6 +80,8 @@ class PokerGame {
       p.betThisStreet = 0;
       p.totalContributed = 0;
       p.sittingOut = p.chips <= 0;
+      p._vpipCounted = false;
+      if (!p.sittingOut) p.stats.hands += 1;
     }
 
     this.dealerIndex = this.handNumber === 1
@@ -116,6 +124,7 @@ class PokerGame {
   }
 
   postBlindsAndStart() {
+    this.raiseOccurredThisStreet = false;
     const contenders = this.seatOrderFrom(this.dealerIndex);
     this.pots = [{ amount: 0, eligible: new Set(contenders.map((p) => p.id)) }];
 
@@ -204,17 +213,55 @@ class PokerGame {
     return this.pots.reduce((sum, pot) => sum + pot.amount, 0);
   }
 
+  // Lightweight per-player VPIP / fold-to-raise / aggression counters, used
+  // by decideBotAction() to nudge bot personalities toward exploiting the
+  // table they're actually sitting at.
+  recordStats(p, action, toCall) {
+    if (this.street === 'preflop' && !p._vpipCounted && (action === 'call' || action === 'bet' || action === 'raise')) {
+      p.stats.vpipHands += 1;
+      p._vpipCounted = true;
+    }
+    if (toCall > 0 && this.raiseOccurredThisStreet) {
+      p.stats.facedRaises += 1;
+      if (action === 'fold') p.stats.foldedToRaise += 1;
+    }
+    if (action === 'bet' || action === 'raise') p.stats.aggressiveActions += 1;
+    p.stats.totalActions += 1;
+  }
+
+  // Aggregate tendencies of the other players still in the game, used to
+  // adapt bot decisions. Returns null until there's enough of a sample to
+  // read anything from.
+  tableTendencies(excludeId) {
+    const others = this.players.filter((p) => p.id !== excludeId && p.stats && p.stats.hands >= 3);
+    if (others.length === 0) return null;
+    const ratio = (numKey, denKey) => {
+      let num = 0, den = 0;
+      for (const p of others) { num += p.stats[numKey]; den += p.stats[denKey]; }
+      return den > 0 ? num / den : 0.5;
+    };
+    return {
+      avgFoldToRaise: ratio('foldedToRaise', 'facedRaises'),
+      avgVpip: ratio('vpipHands', 'hands'),
+      avgAggression: ratio('aggressiveActions', 'totalActions'),
+      sampleSize: others.length,
+    };
+  }
+
   applyAction(playerId, action, amount) {
     const p = this.players.find((pl) => pl.id === playerId);
     if (!p || p !== this.currentActor()) return false;
     const toCall = this.currentBet - p.betThisStreet;
+    if (action === 'check' && toCall > 0) return false;
+    if (!['fold', 'check', 'call', 'bet', 'raise'].includes(action)) return false;
+
+    this.recordStats(p, action, toCall);
 
     if (action === 'fold') {
       p.folded = true;
       this.toAct.delete(playerId);
       this.onEvent('action', { playerId, action: 'fold' });
     } else if (action === 'check') {
-      if (toCall > 0) return false;
       this.toAct.delete(playerId);
       this.onEvent('action', { playerId, action: 'check' });
     } else if (action === 'call') {
@@ -238,6 +285,7 @@ class PokerGame {
       if (reopens) this.minRaise = Math.max(this.minRaise, raiseSize);
       this.currentBet = Math.max(this.currentBet, totalTarget);
       this.lastAggressorId = p.id;
+      this.raiseOccurredThisStreet = true;
       if (p.chips === 0) p.allIn = true;
       if (reopens) {
         this.resetToActSet(playerId);
@@ -245,8 +293,6 @@ class PokerGame {
         this.toAct.delete(playerId);
       }
       this.onEvent('action', { playerId, action, amount: pay, total: totalTarget });
-    } else {
-      return false;
     }
 
     this.advance();
@@ -290,6 +336,7 @@ class PokerGame {
     for (const p of this.players) p.betThisStreet = 0;
     this.currentBet = 0;
     this.minRaise = this.blinds.big;
+    this.raiseOccurredThisStreet = false;
 
     if (this.street === 'preflop') {
       this.board.push(...this.deck.drawMany(3));
@@ -417,4 +464,8 @@ class PokerGame {
       this.onEvent('gameOver', { winner: survivors[0] || null });
     }
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { PokerGame, STREETS, TOURNAMENT_BLIND_LEVELS, HANDS_PER_LEVEL };
 }

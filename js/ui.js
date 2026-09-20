@@ -17,6 +17,7 @@ const UI = {
       resultBanner: document.getElementById('result-banner'),
       resultText: document.getElementById('result-text'),
       rebuyBanner: document.getElementById('rebuy-banner'),
+      rebuyText: document.getElementById('rebuy-text'),
       gameoverBanner: document.getElementById('gameover-banner'),
       gameoverText: document.getElementById('gameover-text'),
       logContent: document.getElementById('log-content'),
@@ -31,7 +32,9 @@ const UI = {
   },
 
   cardHTML(card, faceDown) {
-    if (faceDown) {
+    // A server-redacted opponent card arrives as {hidden:true} with no rank/suit;
+    // render it as a back regardless of the faceDown flag.
+    if (faceDown || !card || card.hidden) {
       return `<div class="card back"></div>`;
     }
     const red = isRedSuit(card.suit);
@@ -64,14 +67,15 @@ const UI = {
     return { left: `${x}%`, top: `${y}%` };
   },
 
-  renderSeats(game, humanId, options) {
-    const { revealAll = false, activePlayerId = null, showdownHands = null } = options || {};
+  renderSeats(game, options) {
+    const { revealAll = false, activePlayerId = null, showdownHands = null, centerId = null, revealIds = [] } = options || {};
     const n = game.players.length;
-    const humanIndex = game.players.findIndex((p) => p.id === humanId);
+    let centerIndex = centerId ? game.players.findIndex((p) => p.id === centerId) : -1;
+    if (centerIndex === -1) centerIndex = 0;
     this.seatsEl.innerHTML = '';
 
     game.players.forEach((p, idx) => {
-      const slot = (idx - humanIndex + n) % n;
+      const slot = (idx - centerIndex + n) % n;
       const pos = this.seatPosition(slot, n);
       const seat = document.createElement('div');
       seat.className = 'seat';
@@ -81,8 +85,9 @@ const UI = {
       if (p.folded) seat.classList.add('folded');
       if (p.id === activePlayerId) seat.classList.add('active-turn');
       if (game.dealerIndex === idx) seat.classList.add('has-dealer');
+      if (p.connected === false) seat.classList.add('disconnected');
 
-      const showCards = p.id === humanId || revealAll;
+      const showCards = revealAll || revealIds.includes(p.id);
       const holeHTML = (p.holeCards || []).map((c) => this.cardHTML(c, !showCards)).join('');
 
       const showdownEntry = showdownHands && showdownHands.find((s) => s.playerId === p.id);
@@ -96,6 +101,7 @@ const UI = {
           ${p.betThisStreet ? `<div class="seat-bet">Bet ${p.betThisStreet}</div>` : ''}
           ${p.allIn ? '<div class="seat-tag allin">ALL-IN</div>' : ''}
           ${p.folded && !p.busted ? '<div class="seat-tag folded">FOLD</div>' : ''}
+          ${p.connected === false ? '<div class="seat-tag offline">OFFLINE</div>' : ''}
           ${handLabel}
         </div>
       `;
@@ -160,8 +166,13 @@ const UI = {
     this.els.resultBanner.classList.add('hidden');
   },
 
-  showRebuy(show) {
+  showRebuy(show, names) {
     this.els.rebuyBanner.classList.toggle('hidden', !show);
+    if (show && names && names.length) {
+      this.els.rebuyText.textContent = names.length === 1
+        ? `${names[0]} is out of chips.`
+        : `${names.join(', ')} are out of chips.`;
+    }
   },
 
   showGameOver(text) {

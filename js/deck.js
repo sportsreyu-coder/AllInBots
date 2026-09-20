@@ -55,3 +55,10 @@ class Deck {
 function cardKey(card) {
   return `${rankLabel(card.rank)}${card.suit}`;
 }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    SUITS, SUIT_SYMBOLS, RANK_ORDER, RANK_LABELS,
+    rankLabel, suitSymbol, isRedSuit, makeDeck, shuffle, Deck, cardKey,
+  };
+}

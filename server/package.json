@@ -1,0 +1,13 @@
+{
+  "name": "allinbots-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for AllInBots online multiplayer poker rooms.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}
