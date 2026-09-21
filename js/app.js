@@ -63,8 +63,16 @@ const App = {
       tableBotCountLabel.textContent = `${tableBotCountInput.value} bots`;
     });
 
+    const chipButtons = document.querySelectorAll('.chip-btn');
+    chipButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        chipButtons.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.startingChips = Number(btn.dataset.chips);
+      });
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
-      this.startingChips = Number(document.getElementById('starting-chips').value);
       this.beginGameFromSetup();
     });
 

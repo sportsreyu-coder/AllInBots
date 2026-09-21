@@ -28,6 +28,7 @@ const UI = {
       allinBtn: document.getElementById('allin-btn'),
       raiseSlider: document.getElementById('raise-slider'),
       raiseInput: document.getElementById('raise-input'),
+      potOdds: document.getElementById('pot-odds'),
     };
   },
 
@@ -141,6 +142,7 @@ const UI = {
     }
     this.els.raiseSlider.disabled = !show;
     this.els.raiseInput.disabled = !show;
+    if (!show) this.els.potOdds.textContent = '';
   },
 
   configureActions(legal) {
@@ -155,6 +157,13 @@ const UI = {
     this.els.raiseInput.value = legal.minRaiseTotal;
     this.els.raiseSlider.disabled = !legal.canRaise;
     this.els.raiseInput.disabled = !legal.canRaise;
+
+    if (legal.toCall > 0) {
+      const odds = Math.round((legal.toCall / (legal.pot + legal.toCall)) * 100);
+      this.els.potOdds.innerHTML = `To call <span class="value">${legal.toCall}</span> · Pot odds <span class="value">${odds}%</span>`;
+    } else {
+      this.els.potOdds.textContent = '';
+    }
   },
 
   showResult(text) {

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AllInBots — Poker vs Bots</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♠️</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -91,13 +94,13 @@
     </div>
 
     <div id="chips-option-row" class="option-row">
-      <label for="starting-chips">Starting chips</label>
-      <select id="starting-chips">
-        <option value="1000">1,000</option>
-        <option value="1500" selected>1,500</option>
-        <option value="3000">3,000</option>
-        <option value="5000">5,000</option>
-      </select>
+      <label>Starting chips</label>
+      <div class="chip-select">
+        <button class="chip-btn" data-chips="1000">1,000</button>
+        <button class="chip-btn selected" data-chips="1500">1,500</button>
+        <button class="chip-btn" data-chips="3000">3,000</button>
+        <button class="chip-btn" data-chips="5000">5,000</button>
+      </div>
     </div>
 
     <button id="start-btn" class="start-btn">Take a Seat</button>
@@ -212,36 +215,47 @@
     </div>
   </header>
 
-  <main class="table-wrap">
-    <div id="poker-table" class="poker-table">
-      <div id="seats"></div>
-      <div class="table-center">
-        <div id="community-cards" class="community-cards"></div>
-        <div id="pot-display" class="pot-display">Pot: 0</div>
-        <div id="street-label" class="street-label"></div>
+  <div class="table-body">
+    <main class="table-wrap">
+      <div id="poker-table" class="poker-table">
+        <div id="seats"></div>
+        <div class="table-center">
+          <div id="community-cards" class="community-cards"></div>
+          <div id="pot-display" class="pot-display">Pot: 0</div>
+          <div id="street-label" class="street-label"></div>
+        </div>
       </div>
-    </div>
-  </main>
 
-  <div id="result-banner" class="result-banner hidden">
-    <div id="result-text"></div>
-    <button id="next-hand-btn" class="start-btn">Deal Next Hand</button>
-  </div>
+      <div id="result-banner" class="result-banner hidden">
+        <div id="result-text"></div>
+        <button id="next-hand-btn" class="start-btn">Deal Next Hand</button>
+      </div>
 
-  <div id="rebuy-banner" class="result-banner hidden">
-    <div id="rebuy-text">You're out of chips.</div>
-    <button id="rebuy-btn" class="start-btn">Rebuy &amp; Continue</button>
-    <button id="quit-btn" class="ghost-btn">Leave Table</button>
-  </div>
+      <div id="rebuy-banner" class="result-banner hidden">
+        <div id="rebuy-text">You're out of chips.</div>
+        <button id="rebuy-btn" class="start-btn">Rebuy &amp; Continue</button>
+        <button id="quit-btn" class="ghost-btn">Leave Table</button>
+      </div>
 
-  <div id="gameover-banner" class="result-banner hidden">
-    <div id="gameover-text"></div>
-    <button id="restart-btn" class="start-btn">Back to Lobby</button>
+      <div id="gameover-banner" class="result-banner hidden">
+        <div id="gameover-text"></div>
+        <button id="restart-btn" class="start-btn">Back to Lobby</button>
+      </div>
+    </main>
+
+    <aside id="log-panel" class="log-panel">
+      <div class="log-header">
+        <span>Hand Log</span>
+        <button id="log-close" class="ghost-btn small">×</button>
+      </div>
+      <div id="log-content" class="log-content"></div>
+    </aside>
   </div>
 
   <footer class="action-bar">
     <div class="log-toggle-wrap">
       <button id="log-toggle" class="ghost-btn small">Hand Log</button>
+      <span id="pot-odds" class="pot-odds"></span>
     </div>
     <div id="action-buttons" class="action-buttons">
       <button id="fold-btn" class="act-btn fold">Fold</button>
@@ -254,14 +268,6 @@
       <button id="allin-btn" class="act-btn allin">All-In</button>
     </div>
   </footer>
-
-  <aside id="log-panel" class="log-panel hidden">
-    <div class="log-header">
-      <span>Hand Log</span>
-      <button id="log-close" class="ghost-btn small">×</button>
-    </div>
-    <div id="log-content" class="log-content"></div>
-  </aside>
 </div>
 
 <script src="js/deck.js"></script>
