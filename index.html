@@ -103,14 +103,12 @@
         <input type="range" id="irl-player-count" min="2" max="9" value="5" />
         <span id="irl-player-count-label">5 players</span>
       </div>
-      <div class="option-row">
-        <label for="irl-player-names">Names (optional)</label>
-        <input type="text" id="irl-player-names" placeholder="e.g. Alex, Sam, Jordan" />
-      </div>
+      <p class="fine-print irl-buyin-hint">Everyone buys in for the amount below &mdash; bump anyone's box if they're putting in more.</p>
+      <div id="irl-players-list" class="irl-players-list"></div>
     </div>
 
     <div id="chips-option-row" class="option-row">
-      <label>Starting chips</label>
+      <label id="chips-option-label">Starting chips</label>
       <div class="chip-select">
         <button class="chip-btn" data-chips="1000">1,000</button>
         <button class="chip-btn selected" data-chips="1500">1,500</button>

@@ -68,7 +68,9 @@ const App = {
     const irlPlayerCountLabel = document.getElementById('irl-player-count-label');
     irlPlayerCountInput.addEventListener('input', () => {
       irlPlayerCountLabel.textContent = `${irlPlayerCountInput.value} players`;
+      this.renderIrlPlayerRows();
     });
+    this.renderIrlPlayerRows();
 
     const chipButtons = document.querySelectorAll('.chip-btn');
     chipButtons.forEach((btn) => {
@@ -76,6 +78,11 @@ const App = {
         chipButtons.forEach((b) => b.classList.remove('selected'));
         btn.classList.add('selected');
         this.startingChips = Number(btn.dataset.chips);
+        // Everyone buys in for the new default; individual rows can still
+        // be bumped up afterward for players putting in more.
+        document.querySelectorAll('.irl-player-chips').forEach((input) => {
+          input.value = this.startingChips;
+        });
       });
     });
 
@@ -97,12 +104,49 @@ const App = {
     document.getElementById('online-options').classList.toggle('hidden', type !== 'online');
     document.getElementById('irl-options').classList.toggle('hidden', type !== 'irl');
     document.getElementById('start-btn').classList.toggle('hidden', type === 'online');
+    document.getElementById('chips-option-label').textContent = type === 'irl' ? 'Default buy-in' : 'Starting chips';
     if (type === 'online' && typeof OnlineApp !== 'undefined') {
       OnlineApp.onTableTypeSelected();
     } else {
       document.getElementById('chips-option-row').classList.remove('hidden');
       document.getElementById('online-create-btn').classList.add('hidden');
       document.getElementById('online-join-btn').classList.add('hidden');
+    }
+  },
+
+  // (Re)builds the per-player name/buy-in rows for "Play IRL" to match the
+  // current player-count slider, preserving values already typed for seats
+  // that still exist and defaulting new seats to the shared buy-in amount —
+  // "everyone joins for the same amount, bump a row for anyone buying extra."
+  renderIrlPlayerRows() {
+    const count = Number(document.getElementById('irl-player-count').value);
+    const container = document.getElementById('irl-players-list');
+    const existing = [...container.querySelectorAll('.irl-player-row')].map((row) => ({
+      name: row.querySelector('.irl-player-name').value,
+      chips: row.querySelector('.irl-player-chips').value,
+    }));
+    container.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const prev = existing[i];
+      const row = document.createElement('div');
+      row.className = 'irl-player-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'irl-player-name';
+      nameInput.placeholder = `Player ${i + 1}`;
+      nameInput.value = prev ? prev.name : '';
+
+      const chipsInput = document.createElement('input');
+      chipsInput.type = 'number';
+      chipsInput.className = 'irl-player-chips';
+      chipsInput.min = '1';
+      chipsInput.step = '50';
+      chipsInput.value = prev ? prev.chips : this.startingChips;
+
+      row.appendChild(nameInput);
+      row.appendChild(chipsInput);
+      container.appendChild(row);
     }
   },
 
@@ -114,9 +158,10 @@ const App = {
     } else if (tableType === 'bots') {
       config.botCount = Number(document.getElementById('table-bot-count').value);
     } else if (tableType === 'irl') {
-      config.playerCount = Number(document.getElementById('irl-player-count').value);
-      const namesRaw = document.getElementById('irl-player-names').value.trim();
-      config.playerNames = namesRaw ? namesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+      config.irlPlayers = [...document.querySelectorAll('.irl-player-row')].map((row, i) => ({
+        name: row.querySelector('.irl-player-name').value.trim() || `Player ${i + 1}`,
+        chips: Math.max(1, Number(row.querySelector('.irl-player-chips').value) || this.startingChips),
+      }));
     }
     this.beginGame(tableType, this.selectedMode, config);
   },
@@ -226,12 +271,7 @@ const App = {
 
   buildPlayers(tableType, config) {
     if (tableType === 'irl') {
-      const players = [];
-      for (let i = 0; i < config.playerCount; i++) {
-        const name = config.playerNames[i] || `Player ${i + 1}`;
-        players.push({ id: `p${i}`, name, isHuman: true, chips: config.startingChips });
-      }
-      return players;
+      return config.irlPlayers.map((p, i) => ({ id: `p${i}`, name: p.name, isHuman: true, chips: p.chips }));
     }
 
     const shuffledPersonalities = [...BOT_PERSONALITIES];

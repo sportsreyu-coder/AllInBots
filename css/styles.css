@@ -179,6 +179,38 @@ html, body {
 .chip-btn:hover { border-color: var(--line-strong); color: var(--text); }
 .chip-btn.selected { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 
+.irl-buyin-hint { margin: -2px 0 2px; }
+
+.irl-players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+.irl-player-row { display: flex; align-items: center; gap: 8px; }
+.irl-player-row .irl-player-name {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+}
+.irl-player-row .irl-player-chips {
+  width: 90px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+
 .table-type-row { margin-bottom: 8px; }
 
 .table-type-select {
