@@ -21,6 +21,7 @@ const UI = {
       gameoverBanner: document.getElementById('gameover-banner'),
       gameoverText: document.getElementById('gameover-text'),
       logContent: document.getElementById('log-content'),
+      betChips: document.getElementById('bet-chips'),
       actionButtons: document.getElementById('action-buttons'),
       foldBtn: document.getElementById('fold-btn'),
       checkCallBtn: document.getElementById('check-call-btn'),
@@ -29,6 +30,9 @@ const UI = {
       raiseSlider: document.getElementById('raise-slider'),
       raiseInput: document.getElementById('raise-input'),
       potOdds: document.getElementById('pot-odds'),
+      presetBtns: document.querySelectorAll('.preset-btn'),
+      showdownBanner: document.getElementById('showdown-banner'),
+      showdownPots: document.getElementById('showdown-pots'),
     };
   },
 
@@ -69,7 +73,10 @@ const UI = {
   },
 
   renderSeats(game, options) {
-    const { revealAll = false, activePlayerId = null, showdownHands = null, centerId = null, revealIds = [] } = options || {};
+    const {
+      revealAll = false, activePlayerId = null, showdownHands = null,
+      centerId = null, revealIds = [], winnerIds = [],
+    } = options || {};
     const n = game.players.length;
     let centerIndex = centerId ? game.players.findIndex((p) => p.id === centerId) : -1;
     if (centerIndex === -1) centerIndex = 0;
@@ -80,11 +87,13 @@ const UI = {
       const pos = this.seatPosition(slot, n);
       const seat = document.createElement('div');
       seat.className = 'seat';
+      seat.dataset.playerId = p.id;
       seat.style.left = pos.left;
       seat.style.top = pos.top;
       if (p.busted) seat.classList.add('busted');
       if (p.folded) seat.classList.add('folded');
       if (p.id === activePlayerId) seat.classList.add('active-turn');
+      if (winnerIds.includes(p.id)) seat.classList.add('winner');
       if (game.dealerIndex === idx) seat.classList.add('has-dealer');
       if (p.connected === false) seat.classList.add('disconnected');
 
@@ -99,7 +108,6 @@ const UI = {
         <div class="seat-info ${p.isHuman ? 'is-human' : ''}">
           <div class="seat-name">${p.name}${game.dealerIndex === idx ? ' <span class="dealer-chip">D</span>' : ''}</div>
           <div class="seat-chips">${p.busted ? 'Busted' : p.chips.toLocaleString()}</div>
-          ${p.betThisStreet ? `<div class="seat-bet">Bet ${p.betThisStreet}</div>` : ''}
           ${p.allIn ? '<div class="seat-tag allin">ALL-IN</div>' : ''}
           ${p.folded && !p.busted ? '<div class="seat-tag folded">FOLD</div>' : ''}
           ${p.connected === false ? '<div class="seat-tag offline">OFFLINE</div>' : ''}
@@ -108,6 +116,95 @@ const UI = {
       `;
       this.seatsEl.appendChild(seat);
     });
+  },
+
+  // Small chip-stack graphics floating between each seat and the pot,
+  // standing in for the plain "Bet 50" text so the table reads like a real
+  // online room. Positioned at a fixed fraction of the way from the seat
+  // toward the table center.
+  renderBetChips(game, options) {
+    const { centerId = null } = options || {};
+    const n = game.players.length;
+    let centerIndex = centerId ? game.players.findIndex((p) => p.id === centerId) : -1;
+    if (centerIndex === -1) centerIndex = 0;
+    this.els.betChips.innerHTML = '';
+
+    game.players.forEach((p, idx) => {
+      if (!p.betThisStreet || p.folded) return;
+      const slot = (idx - centerIndex + n) % n;
+      const seatPos = this.seatPosition(slot, n);
+      const sx = parseFloat(seatPos.left);
+      const sy = parseFloat(seatPos.top);
+      const t = 0.42; // fraction of the way from the seat toward center
+      const x = sx + (50 - sx) * t;
+      const y = sy + (50 - sy) * t;
+      const chip = document.createElement('div');
+      chip.className = 'bet-chip';
+      chip.style.left = `${x}%`;
+      chip.style.top = `${y}%`;
+      chip.innerHTML = `<span class="chip-stack"></span><span class="chip-amount">${p.betThisStreet.toLocaleString()}</span>`;
+      this.els.betChips.appendChild(chip);
+    });
+  },
+
+  // Animates whatever bet chips are currently on the felt sliding into the
+  // pot and fading out — called right before a street/hand-end re-render
+  // wipes them from game state, so the "collection" is visible rather than
+  // bets just vanishing between frames.
+  collectBetChips() {
+    const layer = this.els.betChips;
+    const chips = [...layer.children];
+    if (!chips.length) return;
+    for (const chip of chips) {
+      chip.style.left = '50%';
+      chip.style.top = '50%';
+      chip.style.opacity = '0';
+    }
+    setTimeout(() => {
+      for (const chip of chips) chip.remove();
+    }, 420);
+  },
+
+  // A shrinking bar on the acting seat showing how long they have left to
+  // act — the actual server-enforced shot clock in online play, a cosmetic
+  // stand-in duration for bots/local human turns.
+  startTurnTimer(playerId, durationMs) {
+    this.clearTurnTimer();
+    const seatInfo = this.seatsEl.querySelector(`.seat[data-player-id="${CSS.escape(playerId)}"] .seat-info`);
+    if (!seatInfo || !(durationMs > 0)) return;
+    const bar = document.createElement('div');
+    bar.className = 'turn-timer';
+    bar.innerHTML = '<div class="turn-timer-bar"></div>';
+    seatInfo.appendChild(bar);
+    const fill = bar.querySelector('.turn-timer-bar');
+    fill.style.transitionDuration = `${durationMs}ms`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { fill.style.transform = 'scaleX(0)'; });
+    });
+    this._turnTimerEl = bar;
+  },
+
+  clearTurnTimer() {
+    if (this._turnTimerEl && this._turnTimerEl.parentNode) this._turnTimerEl.remove();
+    this._turnTimerEl = null;
+  },
+
+  // Pulsing dots under a bot's name while it "thinks" — purely cosmetic,
+  // but it keeps a bot's turn from feeling like an instant robotic snap.
+  setThinking(playerId, show) {
+    const seatInfo = this.seatsEl.querySelector(`.seat[data-player-id="${CSS.escape(playerId)}"] .seat-info`);
+    if (!seatInfo) return;
+    const existing = seatInfo.querySelector('.seat-thinking');
+    if (show) {
+      if (!existing) {
+        const el = document.createElement('div');
+        el.className = 'seat-thinking';
+        el.innerHTML = '<span></span><span></span><span></span>';
+        seatInfo.appendChild(el);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
   },
 
   setHUD({ mode, blinds, level, handNumber, handsPerLevel }) {
@@ -142,6 +239,7 @@ const UI = {
     }
     this.els.raiseSlider.disabled = !show;
     this.els.raiseInput.disabled = !show;
+    for (const btn of this.els.presetBtns) btn.disabled = !show;
     if (!show) this.els.potOdds.textContent = '';
   },
 
@@ -157,6 +255,7 @@ const UI = {
     this.els.raiseInput.value = legal.minRaiseTotal;
     this.els.raiseSlider.disabled = !legal.canRaise;
     this.els.raiseInput.disabled = !legal.canRaise;
+    for (const btn of this.els.presetBtns) btn.disabled = !legal.canRaise;
 
     if (legal.toCall > 0) {
       const odds = Math.round((legal.toCall / (legal.pot + legal.toCall)) * 100);
@@ -191,5 +290,28 @@ const UI = {
 
   hideGameOver() {
     this.els.gameoverBanner.classList.add('hidden');
+  },
+
+  // "Play IRL" showdown: no hole cards to evaluate, so render each pot with
+  // a checkbox per eligible player and let a human pick the real winner(s).
+  showManualShowdown(pots) {
+    this.els.showdownPots.innerHTML = pots.map((pot) => `
+      <div class="showdown-pot" data-pot-index="${pot.index}">
+        <div class="showdown-pot-title">${pots.length > 1 ? `Pot ${pot.index + 1}` : 'Pot'}: ${pot.amount.toLocaleString()}</div>
+        <div class="showdown-pot-winners">
+          ${pot.players.map((p) => `
+            <label class="showdown-winner-option">
+              <input type="checkbox" value="${p.id}" />
+              <span>${p.name}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+    this.els.showdownBanner.classList.remove('hidden');
+  },
+
+  hideManualShowdown() {
+    this.els.showdownBanner.classList.add('hidden');
   },
 };

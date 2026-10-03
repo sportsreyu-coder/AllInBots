@@ -47,6 +47,10 @@
         <strong>Humans Only</strong>
         <span>Online multiplayer &mdash; friends join from their own device with a room code or link.</span>
       </button>
+      <button class="mode-btn table-type-btn" data-table-type="irl">
+        <strong>Play IRL</strong>
+        <span>Real cards on your real table &mdash; this just tracks the chip stacks. Pass the device around and click check/raise/fold for whoever's turn it is.</span>
+      </button>
     </div>
 
     <div id="mixed-options" class="option-row">
@@ -91,6 +95,18 @@
       </div>
 
       <p id="online-error" class="fine-print online-error hidden"></p>
+    </div>
+
+    <div id="irl-options" class="hidden">
+      <div class="option-row">
+        <label for="irl-player-count">Players</label>
+        <input type="range" id="irl-player-count" min="2" max="9" value="5" />
+        <span id="irl-player-count-label">5 players</span>
+      </div>
+      <div class="option-row">
+        <label for="irl-player-names">Names (optional)</label>
+        <input type="text" id="irl-player-names" placeholder="e.g. Alex, Sam, Jordan" />
+      </div>
     </div>
 
     <div id="chips-option-row" class="option-row">
@@ -219,6 +235,7 @@
     <main class="table-wrap">
       <div id="poker-table" class="poker-table">
         <div id="seats"></div>
+        <div id="bet-chips" class="bet-chips-layer"></div>
         <div class="table-center">
           <div id="community-cards" class="community-cards"></div>
           <div id="pot-display" class="pot-display">Pot: 0</div>
@@ -241,6 +258,12 @@
         <div id="gameover-text"></div>
         <button id="restart-btn" class="start-btn">Back to Lobby</button>
       </div>
+
+      <div id="showdown-banner" class="result-banner hidden">
+        <div id="showdown-text">Reveal hands at the table, then pick the winner(s) of each pot below (leave a pot blank to chop it evenly).</div>
+        <div id="showdown-pots" class="showdown-pots"></div>
+        <button id="award-pot-btn" class="start-btn">Award Pot</button>
+      </div>
     </main>
 
     <aside id="log-panel" class="log-panel">
@@ -261,9 +284,17 @@
       <button id="fold-btn" class="act-btn fold">Fold</button>
       <button id="check-call-btn" class="act-btn call">Check</button>
       <div class="raise-controls">
-        <input type="range" id="raise-slider" min="0" max="100" value="0" />
-        <input type="number" id="raise-input" min="0" value="0" />
-        <button id="raise-btn" class="act-btn raise">Bet</button>
+        <div class="raise-presets" id="raise-presets">
+          <button type="button" class="preset-btn" data-bb="2">2x</button>
+          <button type="button" class="preset-btn" data-bb="2.5">2.5x</button>
+          <button type="button" class="preset-btn" data-bb="3">3x</button>
+          <button type="button" class="preset-btn" data-bb="4">4x</button>
+        </div>
+        <div class="raise-row">
+          <input type="range" id="raise-slider" min="0" max="100" value="0" />
+          <input type="number" id="raise-input" min="0" value="0" />
+          <button id="raise-btn" class="act-btn raise">Bet</button>
+        </div>
       </div>
       <button id="allin-btn" class="act-btn allin">All-In</button>
     </div>

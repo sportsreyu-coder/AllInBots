@@ -29,6 +29,7 @@ class Room {
     this.started = false;
     this.awaitingNextHand = false;
     this.turnTimer = null;
+    this.turnDeadline = null;
   }
 
   get humanPlayers() {
@@ -168,6 +169,10 @@ class Room {
 
   handleEvent(type, payload) {
     if (type === 'handResult') this.awaitingNextHand = true;
+    // scheduleTurn() sets this.turnDeadline for the new actor — run it
+    // before building snapshots below so broadcastSnapshot carries the new
+    // deadline, not the previous actor's.
+    if (type === 'actionOn') this.scheduleTurn(payload.playerId);
 
     const revealAll = type === 'handResult' && !payload.byFold;
     let activePlayerId = null;
@@ -186,12 +191,11 @@ class Room {
         snapshot: this.buildSnapshot(p.id, revealAll, activePlayerId, legal),
       });
     }
-
-    if (type === 'actionOn') this.scheduleTurn(payload.playerId);
   }
 
   scheduleTurn(playerId) {
     clearTimeout(this.turnTimer);
+    this.turnDeadline = null;
     const game = this.game;
     const player = game.players.find((p) => p.id === playerId);
     if (!player) return;
@@ -202,6 +206,7 @@ class Room {
       return;
     }
 
+    this.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
     this.turnTimer = setTimeout(() => this.actTimeout(playerId), TURN_TIMEOUT_MS);
   }
 
@@ -222,6 +227,8 @@ class Room {
       street: game.street,
       opponentsInHand: Math.max(0, opponentsInHand),
       tendencies: game.tableTendencies(playerId),
+      position: game.positionFor(playerId),
+      bigBlind: game.blinds.big,
     });
 
     if (decision.action === 'fold' && legal.canCheck) {
@@ -264,6 +271,7 @@ class Room {
       you: viewerId,
       activePlayerId,
       legal,
+      turnDeadline: this.turnDeadline,
       players: game.players.map((p) => {
         const showCards = p.id === viewerId || revealAll;
         const holeCards = !p.holeCards || p.holeCards.length === 0

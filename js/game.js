@@ -23,6 +23,10 @@ class PokerGame {
     this.mode = config.mode; // 'cash' | 'tournament'
     this.onEvent = config.onEvent || (() => {});
     this.players = config.players; // [{id,name,isHuman,chips,personality}]
+    // "Play IRL": cards are physically dealt at a real table, so the engine
+    // never touches a deck and showdown waits for a human to pick the
+    // winner(s) instead of evaluating hole cards it was never dealt.
+    this.cardsIRL = !!config.cardsIRL;
     this.dealerIndex = 0;
     this.handNumber = 0;
     this.cashBlinds = { small: 10, big: 20 };
@@ -70,7 +74,7 @@ class PokerGame {
       return;
     }
 
-    this.deck = new Deck();
+    this.deck = this.cardsIRL ? null : new Deck();
     this.board = [];
     this.street = 'preflop';
     for (const p of this.players) {
@@ -88,8 +92,10 @@ class PokerGame {
       ? this.nextActiveIndexFrom(this.dealerIndex, true)
       : this.nextActiveIndexFrom(this.dealerIndex + 1, true);
     const order = this.seatOrderFrom(this.dealerIndex);
-    for (const p of order) {
-      p.holeCards = this.deck.drawMany(2);
+    if (!this.cardsIRL) {
+      for (const p of order) {
+        p.holeCards = this.deck.drawMany(2);
+      }
     }
 
     this.onEvent('handStart', {
@@ -109,6 +115,27 @@ class PokerGame {
       if (!p.sittingOut) order.push(p);
     }
     return order;
+  }
+
+  // Position bucket for a player, derived from their seat distance behind
+  // the dealer among this hand's contenders — same shape js/solver.js's
+  // position dropdown uses (early/middle/late/button/sb/bb), so bot
+  // decisions (js/bot.js) widen or tighten the way real position charts do.
+  positionFor(playerId) {
+    const contenders = this.seatOrderFrom(this.dealerIndex);
+    const n = contenders.length;
+    const ci = contenders.findIndex((p) => p.id === playerId);
+    if (ci === -1) return 'middle';
+    if (n === 2) return ci === 0 ? 'sb' : 'bb';
+    if (ci === 0) return 'button';
+    if (ci === 1) return 'sb';
+    if (ci === 2) return 'bb';
+    const nonBlindCount = n - 3;
+    const posInSeq = ci - 3;
+    const frac = nonBlindCount <= 1 ? 1 : posInSeq / (nonBlindCount - 1);
+    if (frac >= 0.75) return 'late';
+    if (frac >= 0.4) return 'middle';
+    return 'early';
   }
 
   nextActiveIndexFrom(idx, includeSelfIfEligible) {
@@ -339,13 +366,13 @@ class PokerGame {
     this.raiseOccurredThisStreet = false;
 
     if (this.street === 'preflop') {
-      this.board.push(...this.deck.drawMany(3));
+      if (!this.cardsIRL) this.board.push(...this.deck.drawMany(3));
       this.street = 'flop';
     } else if (this.street === 'flop') {
-      this.board.push(...this.deck.drawMany(1));
+      if (!this.cardsIRL) this.board.push(...this.deck.drawMany(1));
       this.street = 'turn';
     } else if (this.street === 'turn') {
-      this.board.push(...this.deck.drawMany(1));
+      if (!this.cardsIRL) this.board.push(...this.deck.drawMany(1));
       this.street = 'river';
     }
     this.onEvent('street', { street: this.street, board: this.board.slice() });
@@ -360,8 +387,10 @@ class PokerGame {
   }
 
   runOutRemainingBoardAndShowdown() {
-    while (this.board.length < 5) {
-      this.board.push(...this.deck.drawMany(1));
+    if (!this.cardsIRL) {
+      while (this.board.length < 5) {
+        this.board.push(...this.deck.drawMany(1));
+      }
     }
     this.onEvent('street', { street: 'runout', board: this.board.slice() });
     this.showdown();
@@ -404,6 +433,15 @@ class PokerGame {
   showdown() {
     this.buildSidePots();
     const contenders = this.contendersRemaining();
+    if (this.cardsIRL) {
+      // No hole cards to evaluate — ask the UI to have a human pick each
+      // pot's winner(s) off the real cards, then call resolveManualShowdown().
+      this.onEvent('manualShowdown', {
+        pots: this.pots.map((pot) => ({ amount: pot.amount, eligible: [...pot.eligible] })),
+        contenders: contenders.map((p) => ({ id: p.id, name: p.name })),
+      });
+      return;
+    }
     const evals = new Map();
     for (const p of contenders) {
       evals.set(p.id, evaluateBest([...p.holeCards, ...this.board]));
@@ -444,6 +482,36 @@ class PokerGame {
         holeCards: p.holeCards,
         hand: evals.get(p.id).name,
       })),
+      byFold: false,
+    });
+    this.finalizeHand();
+  }
+
+  // Awards pots after a "Play IRL" manual showdown. `selections` is an array
+  // parallel to `this.pots`, each entry the list of player ids picked as that
+  // pot's winner(s); an empty/missing entry chops that pot evenly among
+  // everyone still eligible for it.
+  resolveManualShowdown(selections) {
+    const results = [];
+    this.pots.forEach((pot, i) => {
+      if (pot.amount === 0) return;
+      let winners = (selections[i] || []).filter((id) => pot.eligible.has(id));
+      if (winners.length === 0) winners = [...pot.eligible];
+      if (winners.length === 0) return;
+      const share = Math.floor(pot.amount / winners.length);
+      let remainder = pot.amount - share * winners.length;
+      for (const id of winners) {
+        const player = this.players.find((p) => p.id === id);
+        let amount = share;
+        if (remainder > 0) { amount += 1; remainder -= 1; }
+        player.chips += amount;
+        results.push({ playerId: id, amount, hand: null });
+      }
+    });
+
+    this.onEvent('handResult', {
+      winners: results,
+      board: this.board.slice(),
       byFold: false,
     });
     this.finalizeHand();

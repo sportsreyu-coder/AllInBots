@@ -203,6 +203,7 @@ const OnlineApp = {
       { players: snapshot.players, dealerIndex: snapshot.dealerIndex },
       { centerId: snapshot.you, activePlayerId: snapshot.activePlayerId, revealAll: true }
     );
+    UI.renderBetChips({ players: snapshot.players }, { centerId: snapshot.you });
     UI.renderCommunity(snapshot.board);
     UI.renderPot(snapshot.pot);
     UI.setHUD({
@@ -238,6 +239,7 @@ const OnlineApp = {
     switch (event) {
       case 'handStart': {
         UI.hideResult();
+        UI.collectBetChips();
         UI.renderStreet('Preflop');
         this.renderSnapshot(snapshot);
         UI.log(`— Hand #${payload.handNumber} — blinds ${payload.blinds.small}/${payload.blinds.big} —`);
@@ -251,6 +253,7 @@ const OnlineApp = {
       }
       case 'street': {
         const labels = { flop: 'Flop', turn: 'Turn', river: 'River', runout: 'Board' };
+        UI.collectBetChips();
         UI.renderStreet(labels[payload.street] || '');
         UI.log(`— ${labels[payload.street] || payload.street} —`);
         this.renderSnapshot(snapshot);
@@ -268,8 +271,19 @@ const OnlineApp = {
       }
       case 'actionOn': {
         this.renderSnapshot(snapshot);
+        const activePlayer = snapshot.players.find((p) => p.id === snapshot.activePlayerId);
+        if (activePlayer && activePlayer.isHuman && snapshot.turnDeadline) {
+          UI.startTurnTimer(snapshot.activePlayerId, snapshot.turnDeadline - Date.now());
+        } else if (activePlayer && !activePlayer.isHuman) {
+          // The server doesn't tell us a bot's exact think time; a short
+          // fixed cosmetic duration still reads as "thinking" rather than
+          // an instant, robotic snap.
+          UI.startTurnTimer(snapshot.activePlayerId, 1100);
+          UI.setThinking(snapshot.activePlayerId, true);
+        }
         if (snapshot.activePlayerId === snapshot.you && snapshot.legal) {
           App.currentLegal = snapshot.legal;
+          App.currentBigBlind = snapshot.blinds.big;
           UI.configureActions(snapshot.legal);
           UI.showActionButtons(true);
         } else {
@@ -279,6 +293,8 @@ const OnlineApp = {
       }
       case 'handResult': {
         UI.showActionButtons(false);
+        UI.clearTurnTimer();
+        UI.collectBetChips();
         if (payload.showdownHands) {
           for (const entry of payload.showdownHands) {
             const cardsStr = entry.holeCards.map((c) => `${rankLabel(c.rank)}${suitSymbol(c.suit)}`).join(' ');
@@ -301,7 +317,12 @@ const OnlineApp = {
         }
         UI.renderSeats(
           { players: snapshot.players, dealerIndex: snapshot.dealerIndex },
-          { centerId: snapshot.you, revealAll: true, showdownHands: payload.showdownHands }
+          {
+            centerId: snapshot.you,
+            revealAll: true,
+            showdownHands: payload.showdownHands,
+            winnerIds: payload.winners.map((w) => w.playerId),
+          }
         );
         UI.renderCommunity(snapshot.board);
         UI.renderPot(snapshot.pot);

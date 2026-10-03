@@ -15,6 +15,7 @@ const App = {
   tableType: 'mixed',
   startingChips: 1500,
   currentLegal: null,
+  currentBigBlind: null,
   botTimer: null,
   autoAdvanceTimer: null,
   perspectiveId: null,
@@ -63,6 +64,12 @@ const App = {
       tableBotCountLabel.textContent = `${tableBotCountInput.value} bots`;
     });
 
+    const irlPlayerCountInput = document.getElementById('irl-player-count');
+    const irlPlayerCountLabel = document.getElementById('irl-player-count-label');
+    irlPlayerCountInput.addEventListener('input', () => {
+      irlPlayerCountLabel.textContent = `${irlPlayerCountInput.value} players`;
+    });
+
     const chipButtons = document.querySelectorAll('.chip-btn');
     chipButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -88,6 +95,7 @@ const App = {
     document.getElementById('mixed-options').classList.toggle('hidden', type !== 'mixed');
     document.getElementById('bots-options').classList.toggle('hidden', type !== 'bots');
     document.getElementById('online-options').classList.toggle('hidden', type !== 'online');
+    document.getElementById('irl-options').classList.toggle('hidden', type !== 'irl');
     document.getElementById('start-btn').classList.toggle('hidden', type === 'online');
     if (type === 'online' && typeof OnlineApp !== 'undefined') {
       OnlineApp.onTableTypeSelected();
@@ -105,6 +113,10 @@ const App = {
       config.botCount = Number(document.getElementById('bot-count').value);
     } else if (tableType === 'bots') {
       config.botCount = Number(document.getElementById('table-bot-count').value);
+    } else if (tableType === 'irl') {
+      config.playerCount = Number(document.getElementById('irl-player-count').value);
+      const namesRaw = document.getElementById('irl-player-names').value.trim();
+      config.playerNames = namesRaw ? namesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
     }
     this.beginGame(tableType, this.selectedMode, config);
   },
@@ -140,6 +152,17 @@ const App = {
       this.dealNextHand();
     });
 
+    document.getElementById('award-pot-btn').addEventListener('click', () => {
+      const potEls = [...document.querySelectorAll('.showdown-pot')];
+      const selections = [];
+      for (const el of potEls) {
+        const idx = Number(el.dataset.potIndex);
+        selections[idx] = [...el.querySelectorAll('input[type="checkbox"]:checked')].map((cb) => cb.value);
+      }
+      UI.hideManualShowdown();
+      this.game.resolveManualShowdown(selections);
+    });
+
     document.getElementById('log-toggle').addEventListener('click', () => {
       document.getElementById('log-panel').classList.toggle('hidden');
     });
@@ -166,6 +189,19 @@ const App = {
     const input = document.getElementById('raise-input');
     slider.addEventListener('input', () => { input.value = slider.value; });
     input.addEventListener('input', () => { slider.value = input.value; });
+
+    document.querySelectorAll('.preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!this.currentLegal || !this.currentLegal.canRaise || !this.currentBigBlind) return;
+        const mult = parseFloat(btn.dataset.bb);
+        const target = Math.min(
+          Math.max(Math.round(this.currentBigBlind * mult), this.currentLegal.minRaiseTotal),
+          this.currentLegal.maxRaiseTotal
+        );
+        slider.value = target;
+        input.value = target;
+      });
+    });
   },
 
   leaveTable() {
@@ -189,6 +225,15 @@ const App = {
   },
 
   buildPlayers(tableType, config) {
+    if (tableType === 'irl') {
+      const players = [];
+      for (let i = 0; i < config.playerCount; i++) {
+        const name = config.playerNames[i] || `Player ${i + 1}`;
+        players.push({ id: `p${i}`, name, isHuman: true, chips: config.startingChips });
+      }
+      return players;
+    }
+
     const shuffledPersonalities = [...BOT_PERSONALITIES];
     shuffle(shuffledPersonalities);
     const players = [];
@@ -224,9 +269,11 @@ const App = {
     this.game = new PokerGame({
       mode,
       players,
+      cardsIRL: tableType === 'irl',
       onEvent: (type, payload) => this.handleEvent(type, payload),
     });
 
+    document.body.classList.toggle('irl-mode', tableType === 'irl');
     document.getElementById('action-buttons').classList.toggle('spectating', tableType === 'bots');
 
     UI.clearLog();
@@ -247,6 +294,7 @@ const App = {
     clearTimeout(this.botTimer);
     clearTimeout(this.autoAdvanceTimer);
     this.game = null;
+    document.body.classList.remove('irl-mode');
     this.showScreen('setup');
   },
 
@@ -265,6 +313,17 @@ const App = {
     this.rebuyBustedBots();
 
     if (this.tableType === 'bots') {
+      UI.clearLog();
+      this.game.startHand();
+      return;
+    }
+
+    if (this.tableType === 'irl') {
+      const busted = this.game.players.filter((p) => p.busted);
+      if (busted.length > 0 && this.game.mode === 'cash') {
+        UI.showRebuy(true, busted.map((p) => p.name));
+        return;
+      }
       UI.clearLog();
       this.game.startHand();
       return;
@@ -322,6 +381,7 @@ const App = {
     switch (type) {
       case 'handStart': {
         UI.hideResult();
+        UI.collectBetChips();
         UI.renderStreet('Preflop');
         this.syncTable({});
         UI.log(`— Hand #${payload.handNumber} — blinds ${payload.blinds.small}/${payload.blinds.big} —`);
@@ -331,10 +391,12 @@ const App = {
         UI.log(`${this.playerName(payload.sb)} posts small blind ${payload.blinds.small}`);
         UI.log(`${this.playerName(payload.bb)} posts big blind ${payload.blinds.big}`);
         this.syncTable({});
+        UI.renderBetChips(game, { centerId: this.perspectiveId });
         break;
       }
       case 'street': {
         const labels = { flop: 'Flop', turn: 'Turn', river: 'River', runout: 'Board' };
+        UI.collectBetChips();
         UI.renderStreet(labels[payload.street] || '');
         UI.log(`— ${labels[payload.street] || payload.street} —`);
         this.syncTable({});
@@ -348,6 +410,7 @@ const App = {
         else if (payload.action === 'bet') UI.log(`${name} bets ${payload.total}`);
         else if (payload.action === 'raise') UI.log(`${name} raises to ${payload.total}`);
         this.syncTable({ activePlayerId: payload.playerId });
+        UI.renderBetChips(game, { centerId: this.perspectiveId });
         break;
       }
       case 'actionOn': {
@@ -356,6 +419,10 @@ const App = {
       }
       case 'handResult': {
         this.onHandResult(payload);
+        break;
+      }
+      case 'manualShowdown': {
+        this.onManualShowdown(payload);
         break;
       }
       case 'handEnd': {
@@ -389,8 +456,10 @@ const App = {
 
     if (player.isHuman) {
       this.syncTable({ activePlayerId: playerId });
+      UI.startTurnTimer(playerId, 25000); // cosmetic only in local play, no enforcement
       this.actingHumanId = playerId;
       this.currentLegal = game.legalActions();
+      this.currentBigBlind = game.blinds.big;
       UI.configureActions(this.currentLegal);
       UI.showActionButtons(true);
       return;
@@ -399,6 +468,8 @@ const App = {
     this.syncTable({ activePlayerId: playerId });
     UI.showActionButtons(false);
     const delay = 550 + Math.random() * 900;
+    UI.startTurnTimer(playerId, delay);
+    UI.setThinking(playerId, true);
     this.botTimer = setTimeout(() => {
       if (!this.game || this.game !== game) return;
       const legal = game.legalActions();
@@ -414,6 +485,8 @@ const App = {
         street: game.street,
         opponentsInHand: Math.max(0, opponentsInHand),
         tendencies: game.tableTendencies(playerId),
+        position: game.positionFor(playerId),
+        bigBlind: game.blinds.big,
       });
 
       if (decision.action === 'fold' && legal.canCheck) {
@@ -429,9 +502,29 @@ const App = {
     }, delay);
   },
 
+  onManualShowdown(payload) {
+    clearTimeout(this.botTimer);
+    UI.showActionButtons(false);
+    UI.clearTurnTimer();
+    UI.collectBetChips();
+    UI.log('— Showdown — reveal hands at the table and pick the winner(s) below —');
+    this.syncTable({});
+
+    const pots = payload.pots
+      .map((pot, index) => ({
+        index,
+        amount: pot.amount,
+        players: pot.eligible.map((id) => ({ id, name: this.playerName(id) })),
+      }))
+      .filter((pot) => pot.amount > 0);
+    UI.showManualShowdown(pots);
+  },
+
   onHandResult(payload) {
     clearTimeout(this.botTimer);
     UI.showActionButtons(false);
+    UI.clearTurnTimer();
+    UI.collectBetChips();
     const revealAll = !payload.byFold;
 
     if (payload.showdownHands) {
@@ -444,9 +537,8 @@ const App = {
     let text;
     if (payload.winners.length === 1) {
       const w = payload.winners[0];
-      text = w.hand
-        ? `<strong>${this.playerName(w.playerId)}</strong> wins ${w.amount.toLocaleString()} with ${w.hand}`
-        : `<strong>${this.playerName(w.playerId)}</strong> wins ${w.amount.toLocaleString()} (others folded)`;
+      const suffix = w.hand ? ` with ${w.hand}` : (payload.byFold ? ' (others folded)' : '');
+      text = `<strong>${this.playerName(w.playerId)}</strong> wins ${w.amount.toLocaleString()}${suffix}`;
     } else {
       text = payload.winners
         .map((w) => `<strong>${this.playerName(w.playerId)}</strong> wins ${w.amount.toLocaleString()}${w.hand ? ` with ${w.hand}` : ''}`)
@@ -456,7 +548,11 @@ const App = {
       UI.log(`${this.playerName(w.playerId)} wins ${w.amount}${w.hand ? ` (${w.hand})` : ''}`);
     }
 
-    this.syncTable({ revealAll, showdownHands: payload.showdownHands });
+    this.syncTable({
+      revealAll,
+      showdownHands: payload.showdownHands,
+      winnerIds: payload.winners.map((w) => w.playerId),
+    });
     UI.showResult(text);
 
     if (this.tableType === 'bots' && this.game && !this.game.gameOver) {

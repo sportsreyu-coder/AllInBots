@@ -319,8 +319,8 @@ select, input[type="number"] {
 
 .poker-table {
   position: relative;
-  width: min(1000px, 92%);
-  height: min(560px, 78vh);
+  width: min(1080px, 94%);
+  height: min(620px, 80vh);
   background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-2) 78%);
   border: 14px solid var(--rail);
   border-radius: 50% / 45%;
@@ -339,7 +339,7 @@ select, input[type="number"] {
   gap: 8px;
 }
 
-.community-cards { display: flex; gap: 6px; min-height: 74px; }
+.community-cards { display: flex; gap: 10px; min-height: 100px; }
 
 .pot-display {
   color: var(--accent);
@@ -363,25 +363,26 @@ select, input[type="number"] {
 /* Cards */
 
 .card {
-  width: 42px;
-  height: 60px;
+  width: 60px;
+  height: 84px;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.3rem;
   line-height: 1.1;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
   flex: 0 0 auto;
+  transition: transform 0.15s;
 }
 .card.red { color: var(--red); }
 .card.black { color: var(--black); }
-.card .rank { font-size: 1rem; }
-.card .suit { font-size: 1.1rem; }
+.card .rank { font-size: 1.3rem; }
+.card .suit { font-size: 1.5rem; }
 .card.back {
   background: repeating-linear-gradient(135deg, var(--felt) 0, var(--felt) 4px, var(--felt-2) 4px, var(--felt-2) 8px);
   border: 1px solid var(--rail);
@@ -402,15 +403,15 @@ select, input[type="number"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  width: 128px;
+  gap: 5px;
+  width: 148px;
   transition: opacity 0.2s;
 }
 
-.seat-cards { display: flex; gap: 3px; min-height: 40px; }
-.seat .card { width: 30px; height: 42px; font-size: 0.7rem; }
-.seat .card .rank { font-size: 0.7rem; }
-.seat .card .suit { font-size: 0.78rem; }
+.seat-cards { display: flex; gap: 4px; min-height: 58px; }
+.seat .card { width: 42px; height: 58px; font-size: 0.88rem; border-radius: 6px; }
+.seat .card .rank { font-size: 0.88rem; }
+.seat .card .suit { font-size: 1rem; }
 
 .seat-info {
   background: rgba(16, 19, 18, 0.9);
@@ -441,7 +442,6 @@ select, input[type="number"] {
   font-weight: 700;
 }
 .seat-chips { color: var(--accent); font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; }
-.seat-bet { color: var(--dim); font-family: var(--font-mono); font-size: 0.72rem; margin-top: 2px; }
 .seat-tag {
   display: inline-block;
   margin-top: 3px;
@@ -464,6 +464,95 @@ select, input[type="number"] {
 .seat.active-turn .seat-info {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft), 0 0 18px rgba(87, 174, 142, 0.25);
+}
+
+.seat.winner .seat-info {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 0 28px rgba(87, 174, 142, 0.45);
+  animation: winner-pulse 1.1s ease-in-out infinite;
+}
+@keyframes winner-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+
+/* Per-seat turn timer + "thinking" indicator */
+
+.turn-timer {
+  width: 100%;
+  height: 3px;
+  margin-top: 5px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.turn-timer-bar {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform linear;
+}
+
+.seat-thinking {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.seat-thinking span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--dim);
+  animation: thinking-bounce 1s infinite ease-in-out;
+}
+.seat-thinking span:nth-child(2) { animation-delay: 0.15s; }
+.seat-thinking span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes thinking-bounce {
+  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Chip stacks for in-flight bets, floating between a seat and the pot */
+
+.bet-chips-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.bet-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: left 0.4s ease, top 0.4s ease, opacity 0.4s ease;
+}
+.chip-stack {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: repeating-conic-gradient(var(--accent) 0deg 30deg, #f4f1e8 30deg 60deg);
+  border: 2px solid rgba(244, 241, 232, 0.9);
+  box-shadow:
+    0 2px 0 rgba(0,0,0,0.35),
+    0 -3px 0 -1px var(--accent),
+    0 -5px 0 -2px rgba(244, 241, 232, 0.5);
+}
+.chip-amount {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(0,0,0,0.45);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* Result / rebuy / gameover banners */
@@ -540,19 +629,61 @@ select, input[type="number"] {
 
 .raise-controls {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   background: var(--surface-2);
   border: 1px solid var(--line);
   padding: 8px 12px;
   border-radius: 10px;
 }
-.raise-controls input[type="range"] { width: 140px; accent-color: var(--accent); }
-.raise-controls input[type="number"] {
+.raise-row { display: flex; align-items: center; gap: 8px; }
+.raise-row input[type="range"] { width: 140px; accent-color: var(--accent); }
+.raise-row input[type="number"] {
   width: 84px;
   background: var(--bg);
   font-family: var(--font-mono);
 }
+
+.raise-presets { display: flex; gap: 6px; }
+.preset-btn {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.preset-btn:hover { border-color: var(--line-strong); color: var(--text); }
+.preset-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Manual showdown — "Play IRL" mode asks a human to pick each pot's winner
+   instead of the engine evaluating hole cards it was never dealt. */
+.showdown-pots { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
+.showdown-pot {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.showdown-pot-title { font-family: var(--font-mono); font-size: 13px; color: var(--dim); margin-bottom: 8px; }
+.showdown-pot-winners { display: flex; flex-wrap: wrap; gap: 8px; }
+.showdown-winner-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13.5px;
+  transition: border-color 0.15s;
+}
+.showdown-winner-option:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.showdown-winner-option input { accent-color: var(--accent); }
 
 /* Log panel */
 
@@ -788,10 +919,24 @@ select, input[type="number"] {
 
 @media (max-width: 720px) {
   .poker-table { width: 96%; height: 58vh; border-width: 8px; }
-  .seat { width: 96px; }
-  .seat-info { min-width: 82px; padding: 4px 6px; }
-  .card { width: 34px; height: 48px; }
-  .raise-controls input[type="range"] { width: 90px; }
+  .seat { width: 108px; }
+  .seat-info { min-width: 88px; padding: 4px 6px; }
+  .card { width: 46px; height: 64px; font-size: 1rem; }
+  .card .rank { font-size: 1rem; }
+  .card .suit { font-size: 1.15rem; }
+  .seat .card { width: 34px; height: 48px; font-size: 0.72rem; }
+  .seat .card .rank { font-size: 0.72rem; }
+  .seat .card .suit { font-size: 0.82rem; }
+  .community-cards { min-height: 70px; gap: 6px; }
+  .seat-cards { min-height: 48px; }
+  .chip-stack { width: 14px; height: 14px; }
+  .chip-amount { font-size: 0.66rem; padding: 1px 5px; }
+  .raise-row input[type="range"] { width: 90px; }
   .hud { flex-wrap: wrap; gap: 6px; }
   .pot-odds { display: none; }
 }
+
+/* Play IRL: real cards live on the physical table, so hide the digital
+   card graphics entirely and let the felt just show pot/street/chips. */
+.irl-mode .seat-cards,
+.irl-mode .community-cards { display: none; }
