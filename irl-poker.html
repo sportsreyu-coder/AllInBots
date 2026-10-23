@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AllInBots — Play IRL</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
 <style>
 * { box-sizing: border-box; }
 :root {
@@ -790,7 +789,7 @@ const App = {
 
   bindTableScreen() {
     $('leave-btn').addEventListener('click', () => {
-      if (confirm('Leave the table? Chip counts will be lost.')) this.returnToSetup();
+      this.returnToSetup();
     });
     $('restart-btn').addEventListener('click', () => this.returnToSetup());
 
@@ -973,7 +972,7 @@ const App = {
   },
 };
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+App.init();
 </script>
 </body>
 </html>
